@@ -89,7 +89,22 @@ Script sẽ tự động tạo `.env` từ mẫu, đảm bảo thư mục dữ l
 
 ---
 
-## 4. Cấu trúc Thư mục Chính
+## 4. Danh Sách Tài Khoản & Không Gian Làm Việc Độc Lập (Multi-Tenancy)
+
+Hệ thống được thiết kế theo kiến trúc đa người dùng cô lập hoàn toàn (**Multi-tenancy**). Mỗi tài khoản sở hữu một **Workspace (Không gian làm việc)** riêng biệt, toàn bộ kho tài liệu, văn bản bóc tách và lịch sử hỏi đáp của từng tài khoản hoàn toàn bảo mật và không nhìn thấy nhau:
+
+| STT | Loại tài khoản | Tên đăng nhập (Username) | Email hệ thống | Mật khẩu | Không gian làm việc (Workspace) | Ghi chú quyền hạn |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1** | **Quản trị viên** | `admin` | `admin@weknora.local` | `AdminPassword123!` | `admin's Workspace` | Quản trị toàn hệ thống, quản lý model & kho tri thức admin |
+| **2** | **Người dùng 1** | `phuongdong` | `phuongdong@vbsp.local` | `itcn28ht` | `phuongdong's Workspace` | Hoàn toàn cách ly, chỉ thấy và hỏi đáp tài liệu của phuongdong |
+| **3** | **Người dùng 2** | `vbspnghean` | `vbspnghean@vbsp.local` | `itcn28ht` | `vbspnghean's Workspace` | Hoàn toàn cách ly, chỉ thấy và hỏi đáp tài liệu của vbspnghean |
+
+> [!TIP]
+> Tại màn hình đăng nhập (`http://localhost:7666`), bạn có thể nhập trực tiếp **Tên đăng nhập** (`admin`, `phuongdong`, hoặc `vbspnghean`) mà không cần phải gõ đuôi email dài dòng.
+
+---
+
+## 5. Cấu trúc Thư mục Chính
 
 - [`config/builtin_models.yaml`](file:///home/antigravity/auravsoftware/rag_weknora/config/builtin_models.yaml): Khai báo 4 model mặc định dùng chung `Qwen2.5-VL-7B-Instruct-AWQ` (LLM + OCR) và `BAAI/bge-m3` + `bge-reranker-v2-m3`.
 - [`config/prompt_templates/`](file:///home/antigravity/auravsoftware/rag_weknora/config/prompt_templates): Bộ Prompt hệ thống tiếng Việt ép buộc trích dẫn nguồn `[ref:N]` và đối chiếu ngày hiệu lực văn bản.
