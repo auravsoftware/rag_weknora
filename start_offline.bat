@@ -8,7 +8,10 @@ REM 1. Tu dong kiem tra va cap nhat ma nguon neu may co Git
 where git >nul 2>&1
 if not errorlevel 1 (
     echo [+] Đang kiểm tra và đồng bộ cập nhật mới nhất từ GitHub...
-    git pull origin main
+    git fetch origin main
+    git reset --hard origin/main
+    echo [✓] Phiên bản Git hiện tại trên máy của bạn:
+    git log -1 --oneline
 )
 
 REM 2. Kiem tra Docker Desktop
