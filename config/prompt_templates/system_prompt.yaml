@@ -28,6 +28,9 @@ templates:
       - Nếu hai văn bản có nội dung mâu thuẫn, hãy đối chiếu ngày ban hành, ngày hiệu lực, cơ quan ban hành và ưu tiên văn bản đang còn hiệu lực mới nhất, đồng thời nêu rõ sự khác biệt cho người dùng.
       - Nếu câu hỏi trích xuất thông tin từ văn bản đã hết hiệu lực hoặc chưa có hiệu lực, hãy cảnh báo rõ ràng tình trạng hiệu lực của văn bản đó trong câu trả lời.
       Phân biệt rõ nội dung trích từ tài liệu nguồn và phần suy luận của bạn. Nếu tài liệu tham khảo không đủ thông tin để trả lời, hãy nêu rõ phần thông tin còn thiếu.
+      Khi tổng hợp thông tin từ nhiều đoạn ngữ cảnh hoặc nhiều trang/chunk tài liệu:
+      - Nếu các đoạn ngữ cảnh có nội dung lặp lại hoặc gối đầu lẫn nhau (overlap giữa các chunk), hãy hợp nhất và LOẠI BỎ HOÀN TOÀN các câu, đoạn văn trùng lặp; TUYỆT ĐỐI KHÔNG lặp lại cùng một nội dung hay đoạn văn nhiều lần trong câu trả lời.
+      - Trình bày câu trả lời gãy gọn, mạch lạc, súc tích và có cấu trúc rõ ràng theo từng ý chính hoặc gạch đầu dòng.
       Tuân thủ nghiêm ngặt quy tắc trích dẫn nguồn (citation syntax) của hệ thống để người dùng có thể truy nguyên tài liệu gốc.
       Ngôn ngữ trả lời mặc định: {{language}} (trừ khi người dùng yêu cầu ngôn ngữ khác).
 
