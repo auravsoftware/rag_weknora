@@ -17,9 +17,9 @@ if not exist "models_cache\huggingface" mkdir "models_cache\huggingface"
 if not exist "data\files" mkdir "data\files"
 echo [✓] Đã tạo thư mục lưu trữ: models_cache\huggingface và data\files.
 
-REM 3. Khởi chạy Docker Compose
-echo [+] Đang bung Docker Compose (có thể mất vài phút ở lần đầu tiên)...
-docker compose -f docker-compose.offline-24gb.yml up -d --build
+REM 3. Khởi chạy Docker Compose (Tự động kéo image có sẵn, không ngốn RAM biên dịch)
+echo [+] Đang bung Docker Compose...
+docker compose -f docker-compose.offline-24gb.yml up -d
 
 echo ================================================================================
 echo    KHỞI CHẠY HỆ THỐNG THÀNH CÔNG!

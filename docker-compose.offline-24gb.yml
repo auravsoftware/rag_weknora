@@ -45,12 +45,6 @@ services:
 
   app:
     image: wechatopenai/weknora-app:${WEKNORA_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.app
-      args:
-        - APK_MIRROR_ARG=${APK_MIRROR_ARG:-}
-        - WITH_ANYDOC=${WITH_ANYDOC:-1}
     container_name: WeKnora-app
     ports:
       - "${APP_PORT:-6667}:8080"
@@ -113,9 +107,6 @@ services:
 
   docreader:
     image: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.docreader
     container_name: WeKnora-docreader
     expose:
       - "50051"

@@ -77,7 +77,7 @@ Script sẽ tự động tạo `.env` từ mẫu, đảm bảo thư mục dữ l
    Sau khi tải, bật `HF_HUB_OFFLINE=1` trong `.env` để chạy hoàn toàn không cần kết nối mạng.
 3. **Bung Docker Compose**:
    ```bash
-   docker compose -f docker-compose.offline-24gb.yml up -d --build
+   docker compose -f docker-compose.offline-24gb.yml up -d
    ```
 
 - **Giao diện Web Tiếng Việt**: Truy cập `http://localhost:6666` (hoặc `http://<IP-Máy-Chủ>:6666`).
