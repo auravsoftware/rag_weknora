@@ -48,6 +48,17 @@ if not errorlevel 1 (
     echo [+] Phát hiện dải cổng 6666 cũ [bị Chrome chặn ERR_UNSAFE_PORT], tự động nâng cấp lên 7666...
     powershell -Command "(Get-Content .env) -replace '666([6-9])', '766$1' -replace '667([0-2])', '767$1' | Set-Content .env" >nul 2>&1
 )
+REM Nang cap VLLM_MAX_MODEL_LEN len 24576 va VLLM_GPU_MEMORY_UTILIZATION len 0.60
+findstr "VLLM_MAX_MODEL_LEN=8192" .env >nul 2>&1
+if not errorlevel 1 (
+    echo [+] Tự động cập nhật trần context VLLM_MAX_MODEL_LEN=24576 trong .env...
+    powershell -Command "(Get-Content .env) -replace 'VLLM_MAX_MODEL_LEN=8192', 'VLLM_MAX_MODEL_LEN=24576' -replace 'VLLM_GPU_MEMORY_UTILIZATION=0.50', 'VLLM_GPU_MEMORY_UTILIZATION=0.60' | Set-Content .env" >nul 2>&1
+)
+findstr "VLLM_MAX_MODEL_LEN=16384" .env >nul 2>&1
+if not errorlevel 1 (
+    echo [+] Tự động cập nhật trần context VLLM_MAX_MODEL_LEN=24576 trong .env...
+    powershell -Command "(Get-Content .env) -replace 'VLLM_MAX_MODEL_LEN=16384', 'VLLM_MAX_MODEL_LEN=24576' -replace 'VLLM_GPU_MEMORY_UTILIZATION=0.50', 'VLLM_GPU_MEMORY_UTILIZATION=0.60' | Set-Content .env" >nul 2>&1
+)
 echo [✓] Tệp .env đã sẵn sàng [dải cổng an toàn 7666-7672].
 
 REM 4. Dam bao cac thu muc ton tai
@@ -60,8 +71,27 @@ echo [+] Đang bung Docker Compose [kich hoat du 7/7 container]...
 docker compose -f docker-compose.offline-24gb.yml up -d frontend app docreader postgres redis vllm-qwen25-vl infinity-models
 if errorlevel 1 goto COMPOSE_FAILED
 
-REM 6. Tu dong tao 2 tai khoan nguoi dung neu chua ton tai
-timeout /t 3 >nul 2>&1
+REM 6. Cho doi mo hinh AI vLLM hoan tat nap vao VRAM GPU
+echo [+] Đang kiểm tra và đợi mô hình AI vLLM nạp vào GPU (khoảng 30-90 giây)...
+set /a VLLM_WAIT_COUNT=0
+:WAIT_VLLM_LOOP
+timeout /t 5 >nul 2>&1
+set /a VLLM_WAIT_COUNT+=1
+curl -s -m 2 http://localhost:7670/health >nul 2>&1
+if not errorlevel 1 goto VLLM_READY
+if %VLLM_WAIT_COUNT% geq 24 goto VLLM_TIMEOUT
+echo     ... [%VLLM_WAIT_COUNT%/24] Đang nạp trọng số mô hình vào VRAM, vui lòng đợi...
+goto WAIT_VLLM_LOOP
+
+:VLLM_READY
+echo [✓] Mô hình AI vLLM đã nạp hoàn tất và sẵn sàng phục vụ!
+goto REGISTER_USERS
+
+:VLLM_TIMEOUT
+echo [!] Lưu ý: Mô hình vLLM đang tiếp tục nạp. Bạn có thể mở xem_log_ocr_llm.bat để theo dõi.
+
+:REGISTER_USERS
+REM 7. Tu dong tao 2 tai khoan nguoi dung neu chua ton tai
 curl -s -X POST http://localhost:7667/api/v1/auth/register -H "Content-Type: application/json" -d "{\"username\":\"phuongdong\",\"email\":\"phuongdong@vbsp.local\",\"password\":\"itcn28ht\"}" >nul 2>&1
 curl -s -X POST http://localhost:7667/api/v1/auth/register -H "Content-Type: application/json" -d "{\"username\":\"vbspnghean\",\"email\":\"vbspnghean@vbsp.local\",\"password\":\"itcn28ht\"}" >nul 2>&1
 goto COMPOSE_OK
