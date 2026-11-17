@@ -29,6 +29,8 @@ services:
     container_name: WeKnora-frontend
     ports:
       - "${FRONTEND_PORT:-7666}:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html
     environment:
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
       - DEFAULT_LOCALE=${DEFAULT_LOCALE:-vi-VN}

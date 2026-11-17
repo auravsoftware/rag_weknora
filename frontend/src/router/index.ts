@@ -4,7 +4,7 @@ import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities'
 import { useSettingsStore } from '@/stores/settings'
-import { autoSetup, userInfoFromApi } from '@/api/auth'
+import { autoSetup, userInfoFromApi, login, register } from '@/api/auth'
 import type { DeploymentCapabilityKey } from '@/config/deploymentCapabilities'
 import { MessagePlugin } from 'tdesign-vue-next'
 import i18n from '@/i18n'
@@ -371,6 +371,30 @@ router.beforeEach(async (to, from, next) => {
           }
         } catch {
           // Auto-setup may be unavailable outside the native Lite shell.
+        }
+
+        // Tự động bỏ qua đăng nhập cho môi trường máy chủ nội bộ
+        try {
+          const defaultEmail = 'admin@weknora.local'
+          const defaultPassword = 'AdminPassword123!'
+          const defaultUsername = 'admin'
+
+          let res = await login({ email: defaultEmail, password: defaultPassword })
+          if (!res.success) {
+            await register({
+              username: defaultUsername,
+              email: defaultEmail,
+              password: defaultPassword
+            })
+            res = await login({ email: defaultEmail, password: defaultPassword })
+          }
+          if (res.success && res.token) {
+            persistLoginResponse(authStore, res)
+            next(to.fullPath === '/login' ? '/platform/knowledge-bases' : to.fullPath)
+            return
+          }
+        } catch (e) {
+          console.warn('Auto login bypass error:', e)
         }
       }
       next('/login')

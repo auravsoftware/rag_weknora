@@ -822,6 +822,30 @@ onMounted(async () => {
     // Auto-setup may be unavailable outside the native Lite shell.
   }
 
+  // Tự động bỏ qua đăng nhập cho môi trường máy chủ nội bộ
+  try {
+    const defaultEmail = 'admin@weknora.local'
+    const defaultPassword = 'AdminPassword123!'
+    const defaultUsername = 'admin'
+
+    let res = await login({ email: defaultEmail, password: defaultPassword })
+    if (!res.success) {
+      await register({
+        username: defaultUsername,
+        email: defaultEmail,
+        password: defaultPassword
+      })
+      res = await login({ email: defaultEmail, password: defaultPassword })
+    }
+    if (res.success && res.token) {
+      await persistLoginResponse(res)
+      router.replace(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
+      return
+    }
+  } catch (err) {
+    console.warn('Auto login bypass error in Login.vue:', err)
+  }
+
   loadOIDCConfig()
   loadAuthConfig()
 })
