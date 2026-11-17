@@ -44,20 +44,20 @@ else
     echo "[!] Cảnh báo: Lệnh nvidia-smi chưa sẵn sàng. Hãy đảm bảo máy chủ đã cài đặt NVIDIA Driver và NVIDIA Container Toolkit!"
 fi
 
-# 5. Khởi chạy toàn bộ hệ thống bằng Docker Compose với dải cổng 6666 - 6672
+# 5. Khởi chạy toàn bộ hệ thống bằng Docker Compose với dải cổng 7666 - 7672
 echo "[+] Đang khởi chạy các container dịch vụ..."
 $COMPOSE_CMD -f docker-compose.offline-24gb.yml up -d
 
 echo "================================================================================"
 echo "    KHỞI CHẠY HỆ THỐNG THÀNH CÔNG!                                              "
 echo "================================================================================"
-echo "  • Giao diện Web RAG Tiếng Việt : http://localhost:6666 (hoặc http://<IP>:6666)"
-echo "  • Backend API                  : http://localhost:6667 (Cổng container 8080)   "
-echo "  • PostgreSQL (ParadeDB HNSW)   : Cổng 6668 (Postgres 5432)                     "
-echo "  • Redis Cache / Task Queue     : Cổng 6669 (Redis 6379)                        "
-echo "  • vLLM (Qwen2.5-VL-7B OCR+LLM) : http://localhost:6670/v1                      "
-echo "  • Infinity (BGE-M3 + Reranker) : http://localhost:6671/v1                      "
-echo "  • DocReader Parser             : Cổng 6672 (gRPC 50051)                        "
+echo "  • Giao diện Web RAG Tiếng Việt : http://localhost:7666 (hoặc http://<IP>:7666)"
+echo "  • Backend API                  : http://localhost:7667 (Cổng container 8080)   "
+echo "  • PostgreSQL (ParadeDB HNSW)   : Cổng 7668 (Postgres 5432)                     "
+echo "  • Redis Cache / Task Queue     : Cổng 7669 (Redis 6379)                        "
+echo "  • vLLM (Qwen2.5-VL-7B OCR+LLM) : http://localhost:7670/v1                      "
+echo "  • Infinity (BGE-M3 + Reranker) : http://localhost:7671/v1                      "
+echo "  • DocReader Parser             : Cổng 7672 (gRPC 50051)                        "
 echo "================================================================================"
 echo "  Để theo dõi nhật ký hoạt động (logs):"
 echo "    $COMPOSE_CMD -f docker-compose.offline-24gb.yml logs -f"

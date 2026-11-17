@@ -28,7 +28,7 @@ services:
     #     NODE_MAX_OLD_SPACE_SIZE: ${NODE_MAX_OLD_SPACE_SIZE:-4096}
     container_name: WeKnora-frontend
     ports:
-      - "${FRONTEND_PORT:-6666}:80"
+      - "${FRONTEND_PORT:-7666}:80"
     environment:
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
       - DEFAULT_LOCALE=${DEFAULT_LOCALE:-vi-VN}
@@ -46,7 +46,7 @@ services:
     image: wechatopenai/weknora-app:${WEKNORA_VERSION:-latest}
     container_name: WeKnora-app
     ports:
-      - "${APP_PORT:-6667}:8080"
+      - "${APP_PORT:-7667}:8080"
     volumes:
       - data-files:/data/files
       - docreader-tmp:/tmp/docreader:ro
@@ -110,7 +110,7 @@ services:
     expose:
       - "50051"
     ports:
-      - "${DOCREADER_PORT:-6672}:50051"
+      - "${DOCREADER_PORT:-7672}:50051"
     volumes:
       - docreader-tmp:/tmp/docreader
     environment:
@@ -144,7 +144,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres123!@#}
       - POSTGRES_DB=${DB_NAME:-WeKnora}
     ports:
-      - "${DB_PORT:-6668}:5432"
+      - "${DB_PORT:-7668}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -163,7 +163,7 @@ services:
     container_name: WeKnora-redis
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123!@#}
     ports:
-      - "${REDIS_PORT:-6669}:6379"
+      - "${REDIS_PORT:-7669}:6379"
     volumes:
       - redis-data:/data
     restart: always
@@ -179,7 +179,7 @@ services:
     container_name: WeKnora-vllm-qwen25-vl
     ipc: host
     ports:
-      - "${VLLM_PORT:-6670}:6670"
+      - "${VLLM_PORT:-7670}:7670"
     volumes:
       - ${HF_CACHE_DIR:-./models_cache/huggingface}:/root/.cache/huggingface
     environment:
@@ -204,7 +204,7 @@ services:
       - "half"
       - "--trust-remote-code"
       - "--port"
-      - "6670"
+      - "7670"
     deploy:
       resources:
         reservations:
@@ -213,7 +213,7 @@ services:
               count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6670/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:7670/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -230,7 +230,7 @@ services:
     image: michaelf34/infinity:latest
     container_name: WeKnora-infinity-models
     ports:
-      - "${INFINITY_PORT:-6671}:6671"
+      - "${INFINITY_PORT:-7671}:7671"
     volumes:
       - ${HF_CACHE_DIR:-./models_cache/huggingface}:/app/.cache/huggingface
     environment:
@@ -243,7 +243,7 @@ services:
       - "--model-id"
       - "${RERANK_MODEL_NAME:-BAAI/bge-reranker-v2-m3}"
       - "--port"
-      - "6671"
+      - "7671"
       - "--batch-size"
       - "32"
       - "--dtype"
@@ -258,7 +258,7 @@ services:
               count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6671/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:7671/health"]
       interval: 30s
       timeout: 10s
       retries: 5

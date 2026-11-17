@@ -37,17 +37,17 @@ Hệ thống **RAG (Retrieval-Augmented Generation)** tra cứu, hỏi đáp tà
 
 | Thành phần | Model / Công nghệ | Dịch vụ chạy | VRAM tiêu thụ | Vai trò |
 | :--- | :--- | :--- | :---: | :--- |
-| **LLM Hỏi đáp RAG + VLM OCR** | `Qwen/Qwen2.5-VL-7B-Instruct-AWQ` | `vllm-qwen25-vl` (`:6670`) | **~15.0 GB** | Trả lời hỏi đáp RAG có trích dẫn `[ref:N]` **kiêm** OCR PDF Scan & bảng biểu |
-| **Embedding Đa ngôn ngữ** | `BAAI/bge-m3` (FP16, 1024-dim) | `infinity-models` (`:6671`) | **~1.2 GB** | Mã hóa vector ngữ nghĩa tiếng Việt |
-| **Reranker Chấm điểm lại** | `BAAI/bge-reranker-v2-m3` (FP16) | `infinity-models` (`:6671`) | **~1.3 GB** | Xếp hạng lại Top-K đoạn văn bản trước khi đưa vào LLM |
-| **Vector + BM25 Hybrid DB** | `paradedb/paradedb:v0.25.11-pg17` | `postgres` (`:6668` host / `5432` container) | **0 GB (CPU)** | Tìm kiếm kết hợp Dense Vector (HNSW) + Từ khóa BM25 |
-| **Redis Cache / Task Queue** | `redis:7.0-alpine` | `redis` (`:6669` host / `6379` container) | **0 GB (CPU)** | Hàng đợi tác vụ Asynq & xử lý luồng |
-| **DocReader Parser** | Python DocReader + LibreOffice | `docreader` (`:6672` host / `50051` gRPC) | **0 GB (CPU)** | Bóc tách PDF Vector, Word .docx/.doc, render trang PDF Scan |
-| **Backend & Frontend** | Go gin-gonic + Vue 3 UI Tiếng Việt | `app` (`:6667`) + `frontend` (`:6666`) | **0 GB (CPU)** | Web UI (`:6666`) & API Core (`:6667`) |
+| **LLM Hỏi đáp RAG + VLM OCR** | `Qwen/Qwen2.5-VL-7B-Instruct-AWQ` | `vllm-qwen25-vl` (`:7670`) | **~15.0 GB** | Trả lời hỏi đáp RAG có trích dẫn `[ref:N]` **kiêm** OCR PDF Scan & bảng biểu |
+| **Embedding Đa ngôn ngữ** | `BAAI/bge-m3` (FP16, 1024-dim) | `infinity-models` (`:7671`) | **~1.2 GB** | Mã hóa vector ngữ nghĩa tiếng Việt |
+| **Reranker Chấm điểm lại** | `BAAI/bge-reranker-v2-m3` (FP16) | `infinity-models` (`:7671`) | **~1.3 GB** | Xếp hạng lại Top-K đoạn văn bản trước khi đưa vào LLM |
+| **Vector + BM25 Hybrid DB** | `paradedb/paradedb:v0.25.11-pg17` | `postgres` (`:7668` host / `5432` container) | **0 GB (CPU)** | Tìm kiếm kết hợp Dense Vector (HNSW) + Từ khóa BM25 |
+| **Redis Cache / Task Queue** | `redis:7.0-alpine` | `redis` (`:7669` host / `6379` container) | **0 GB (CPU)** | Hàng đợi tác vụ Asynq & xử lý luồng |
+| **DocReader Parser** | Python DocReader + LibreOffice | `docreader` (`:7672` host / `50051` gRPC) | **0 GB (CPU)** | Bóc tách PDF Vector, Word .docx/.doc, render trang PDF Scan |
+| **Backend & Frontend** | Go gin-gonic + Vue 3 UI Tiếng Việt | `app` (`:7667`) + `frontend` (`:7666`) | **0 GB (CPU)** | Web UI (`:7666`) & API Core (`:7667`) |
 | **Tổng cộng VRAM** | | | **~17.5 GB / 24.0 GB** | **Dư ~6.5 GB VRAM an toàn cho hệ thống & đột biến tải** |
 
 > [!NOTE]
-> Toàn bộ dải cổng đã được chuyển đổi sang **`6666 - 6672`** để đảm bảo tuyệt đối không xung đột với các dịch vụ mặc định (80, 8080, 5432, 6379, 8000, 7997, 50051) đang có trên máy chủ.
+> Toàn bộ dải cổng đã được chuyển đổi sang **`7666 - 7672`** để đảm bảo tuyệt đối an toàn cho trình duyệt (Chrome/Edge chặn dải 6665-6669 vì là cổng IRC) và không xung đột với các dịch vụ mặc định đang có trên máy chủ.
 
 ---
 
@@ -55,6 +55,10 @@ Hệ thống **RAG (Retrieval-Augmented Generation)** tra cứu, hỏi đáp tà
 
 ### Cách 1: Khởi chạy nhanh bằng 1 lệnh duy nhất (Khuyên dùng)
 ```bash
+# Trên Windows CMD:
+start_offline.bat
+
+# Trên Linux:
 ./start_offline.sh
 ```
 Script sẽ tự động tạo `.env` từ mẫu, đảm bảo thư mục dữ liệu, kiểm tra GPU và khởi chạy toàn bộ cụm Docker Compose.
@@ -80,8 +84,8 @@ Script sẽ tự động tạo `.env` từ mẫu, đảm bảo thư mục dữ l
    docker compose -f docker-compose.offline-24gb.yml up -d
    ```
 
-- **Giao diện Web Tiếng Việt**: Truy cập `http://localhost:6666` (hoặc `http://<IP-Máy-Chủ>:6666`).
-- **Tự động cấu hình Model**: Hệ thống tự động nạp tệp [`config/builtin_models.yaml`](file:///home/antigravity/auravsoftware/rag_weknora/config/builtin_models.yaml) khi khởi động, đăng ký sẵn 4 tác vụ (`KnowledgeQA`, `VLLM`, `Embedding`, `Rerank`) trỏ về `vllm-qwen25-vl:6670` và `infinity-models:6671` mà không cần thao tác gì thêm.
+- **Giao diện Web Tiếng Việt**: Truy cập `http://localhost:7666` (hoặc `http://<IP-Máy-Chủ>:7666`).
+- **Tự động cấu hình Model**: Hệ thống tự động nạp tệp [`config/builtin_models.yaml`](file:///home/antigravity/auravsoftware/rag_weknora/config/builtin_models.yaml) khi khởi động, đăng ký sẵn 4 tác vụ (`KnowledgeQA`, `VLLM`, `Embedding`, `Rerank`) trỏ về `vllm-qwen25-vl:7670` và `infinity-models:7671` mà không cần thao tác gì thêm.
 
 ---
 

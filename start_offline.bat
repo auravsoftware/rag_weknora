@@ -28,12 +28,17 @@ exit /b 1
 :DOCKER_IS_READY
 echo [✓] Docker Engine đang hoạt động tốt.
 
-REM 2. Khoi tao tep .env neu chua co
-if exist .env goto ENV_EXISTS
-echo [+] Chưa tìm thấy .env, đang tự động tạo từ .env.offline-24gb.example...
-copy .env.offline-24gb.example .env >nul
-:ENV_EXISTS
-echo [✓] Tệp .env đã sẵn sàng.
+REM 2. Khoi tao hoac dong bo tep .env
+if not exist .env (
+    echo [+] Chưa tìm thấy .env, đang tự động tạo từ .env.offline-24gb.example...
+    copy .env.offline-24gb.example .env >nul
+)
+findstr "6666" .env >nul 2>&1
+if not errorlevel 1 (
+    echo [+] Phát hiện dải cổng 6666 cũ [bị Chrome chặn ERR_UNSAFE_PORT], tự động nâng cấp lên 7666...
+    powershell -Command "(Get-Content .env) -replace '666([6-9])', '766$1' -replace '667([0-2])', '767$1' | Set-Content .env" >nul 2>&1
+)
+echo [✓] Tệp .env đã sẵn sàng [dải cổng an toàn 7666-7672].
 
 REM 3. Dam bao cac thu muc ton tai
 if not exist "models_cache\huggingface" mkdir "models_cache\huggingface"
@@ -61,14 +66,14 @@ echo.
 echo ================================================================================
 echo    KHỞI CHẠY HỆ THỐNG THÀNH CÔNG!
 echo ================================================================================
-echo   - Giao diện Web RAG Tiếng Việt : http://localhost:6666
-echo   - Backend Core API             : http://localhost:6667
-echo   - PostgreSQL [ParadeDB HNSW]   : Cổng 6668
-echo   - Redis Cache                  : Cổng 6669
-echo   - vLLM [Qwen2.5-VL-7B OCR+LLM] : http://localhost:6670/v1
-echo   - Infinity [BGE-M3 + Reranker] : http://localhost:6671/v1
-echo   - DocReader Parser             : Cổng 6672
+echo   - Giao diện Web RAG Tiếng Việt : http://localhost:7666
+echo   - Backend Core API             : http://localhost:7667
+echo   - PostgreSQL [ParadeDB HNSW]   : Cổng 7668
+echo   - Redis Cache                  : Cổng 7669
+echo   - vLLM [Qwen2.5-VL-7B OCR+LLM] : http://localhost:7670/v1
+echo   - Infinity [BGE-M3 + Reranker] : http://localhost:7671/v1
+echo   - DocReader Parser             : Cổng 7672
 echo ================================================================================
-echo   Mở trình duyệt truy cập ngay: http://localhost:6666
+echo   Mở trình duyệt truy cập ngay: http://localhost:7666
 echo ================================================================================
 pause

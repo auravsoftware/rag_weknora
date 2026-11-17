@@ -395,27 +395,27 @@ func TestLoadBuiltinModelsConfig_ActualOffline24GBConfig(t *testing.T) {
 	llm := byID["builtin-qwen25-vl-llm"]
 	assert.Equal(t, ModelTypeKnowledgeQA, llm.Type)
 	assert.Equal(t, "Qwen/Qwen2.5-VL-7B-Instruct-AWQ", llm.Name)
-	assert.Equal(t, "http://vllm-qwen25-vl:6670/v1", llm.Parameters.BaseURL)
+	assert.Equal(t, "http://vllm-qwen25-vl:7670/v1", llm.Parameters.BaseURL)
 	assert.True(t, llm.IsDefault)
 	assert.True(t, llm.Parameters.SupportsVision)
 
 	ocr := byID["builtin-qwen25-vl-ocr"]
 	assert.Equal(t, ModelTypeVLLM, ocr.Type)
 	assert.Equal(t, "Qwen/Qwen2.5-VL-7B-Instruct-AWQ", ocr.Name)
-	assert.Equal(t, "http://vllm-qwen25-vl:6670/v1", ocr.Parameters.BaseURL)
+	assert.Equal(t, "http://vllm-qwen25-vl:7670/v1", ocr.Parameters.BaseURL)
 	assert.True(t, ocr.IsDefault)
 
 	emb := byID["builtin-bge-m3-embedding"]
 	assert.Equal(t, ModelTypeEmbedding, emb.Type)
 	assert.Equal(t, "BAAI/bge-m3", emb.Name)
 	assert.Equal(t, 1024, emb.Parameters.EmbeddingParameters.Dimension)
-	assert.Equal(t, "http://infinity-models:6671/v1", emb.Parameters.BaseURL)
+	assert.Equal(t, "http://infinity-models:7671/v1", emb.Parameters.BaseURL)
 	assert.True(t, emb.IsDefault)
 
 	rerank := byID["builtin-bge-reranker-v2-m3"]
 	assert.Equal(t, ModelTypeRerank, rerank.Type)
 	assert.Equal(t, "BAAI/bge-reranker-v2-m3", rerank.Name)
-	assert.Equal(t, "http://infinity-models:6671/v1", rerank.Parameters.BaseURL)
+	assert.Equal(t, "http://infinity-models:7671/v1", rerank.Parameters.BaseURL)
 	assert.True(t, rerank.IsDefault)
 }
 

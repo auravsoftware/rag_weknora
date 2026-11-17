@@ -11,7 +11,7 @@ builtin_models:
     is_default: true
     description: "Qwen2.5-VL-7B-Instruct (Offline LLM Hỏi đáp RAG & Tóm tắt tài liệu - dùng chung vLLM với OCR)"
     parameters:
-      base_url: http://vllm-qwen25-vl:6670/v1
+      base_url: http://vllm-qwen25-vl:7670/v1
       api_key: local-offline-key
       provider: generic
       interface_type: openai
@@ -26,7 +26,7 @@ builtin_models:
     is_default: true
     description: "Qwen2.5-VL-7B-Instruct (Offline VLM OCR nhận diện PDF Scan, bảng biểu, con dấu - dùng chung vLLM với LLM)"
     parameters:
-      base_url: http://vllm-qwen25-vl:6670/v1
+      base_url: http://vllm-qwen25-vl:7670/v1
       api_key: local-offline-key
       provider: generic
       interface_type: openai
@@ -41,7 +41,7 @@ builtin_models:
     is_default: true
     description: "BAAI/bge-m3 (Offline Multilingual Embedding 1024 chiều tối ưu tiếng Việt)"
     parameters:
-      base_url: http://infinity-models:6671/v1
+      base_url: http://infinity-models:7671/v1
       api_key: local-offline-key
       provider: generic
       embedding_parameters:
@@ -55,6 +55,6 @@ builtin_models:
     is_default: true
     description: "BAAI/bge-reranker-v2-m3 (Offline Cross-Encoder Reranker chấm điểm lại ngữ cảnh tiếng Việt)"
     parameters:
-      base_url: http://infinity-models:6671/v1
+      base_url: http://infinity-models:7671/v1
       api_key: local-offline-key
       provider: generic
