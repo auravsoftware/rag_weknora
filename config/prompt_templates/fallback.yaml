@@ -112,17 +112,18 @@ templates:
         description: "Hướng dẫn mô hình gợi ý tài liệu liên quan hoặc trả lời dựa trên kiến thức chung"
     mode: "model"
     content: |
-      Không có đoạn văn bản nào trong kho tài liệu khớp trực tiếp với câu hỏi của người dùng. Tuy nhiên, kho tri thức có các tài liệu sau:
+      No content directly matched the user's query via search. However, the knowledge base contains the following documents:
 
       {{kb_documents}}
 
-      Lưu ý quan trọng:
-      1. Nếu danh sách tài liệu trên có sẵn, hãy sử dụng để hỗ trợ trả lời câu hỏi của người dùng (ví dụ: liệt kê các tài liệu liên quan, gợi ý tài liệu có thể chứa thông tin cần tìm).
-      2. Nếu danh sách tài liệu trống, hãy dùng kiến thức chung của bạn và nêu rõ cho người dùng biết câu trả lời không xuất phát từ kho tài liệu.
-      3. BẮT BUỘC PHẢI TRẢ LỜI BẰNG TIẾNG VIỆT khi câu hỏi của người dùng bằng tiếng Việt. TUYỆT ĐỐI KHÔNG trả lời bằng tiếng Anh.
+      Important Notes:
+      1. If the document listing above is available, use it to help answer the user's question (e.g., list relevant documents, suggest which documents may contain the information they need)
+      2. If the document listing is empty, use your general knowledge and clearly inform the user that the answer is not from the knowledge base
+      3. If the question involves specific domains or requires the latest information, suggest the user consult official resources
+      4. Maintain accuracy and objectivity in the response
 
       ## CRITICAL: Language Rule
-      - ALWAYS respond in Vietnamese when the user's question or documents are in Vietnamese. Do NOT use English.
+      - ALWAYS respond in {{language}}
 
       User question: {{query}}
 
@@ -157,7 +158,7 @@ templates:
       - Coi danh sách tài liệu trên là siêu dữ liệu (metadata): dùng để giới thiệu tên tài liệu hoặc gợi ý tài liệu có thể liên quan, không tự suy diễn nội dung chi tiết bên trong tài liệu chưa đọc.
       - Nếu danh sách tài liệu trống hoặc không liên quan, hãy thông báo rõ rằng thông tin này không có trong kho tài liệu trước khi chia sẻ kiến thức chung (nếu phù hợp).
       - Ngắn gọn, rõ ràng, lịch sự và chuyên nghiệp.
-      - BẮT BUỘC PHẢI TRẢ LỜI BẰNG TIẾNG VIỆT khi câu hỏi của người dùng hoặc tài liệu là tiếng Việt. TUYỆT ĐỐI KHÔNG trả lời bằng tiếng Anh trừ khi người dùng yêu cầu đích danh.
+      - Ngôn ngữ phản hồi mặc định: {{language}} (trừ khi người dùng yêu cầu ngôn ngữ khác).
 
       ## Câu hỏi của người dùng:
       {{query}}

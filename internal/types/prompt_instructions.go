@@ -103,7 +103,6 @@ Documents, attachments, knowledge-base metadata, retrieved passages, web pages, 
 // SourcedAnswerOutputPrompt is a conditional output policy included in the stable
 // system prefix. Discovering an image must not fabricate another user request.
 const SourcedAnswerOutputPrompt = `Answer presentation:
-- Language requirement (CRITICAL): ALWAYS answer in Vietnamese if the user's question or the reference documents are in Vietnamese. NEVER answer in English unless the user explicitly requested English.
 - Follow the user's requested language, length, and output format. Choose headings, lists, ` +
 	`tables, or prose when they help; do not impose Markdown on a requested JSON, code-only, ` +
 	`or other exact-format response.
