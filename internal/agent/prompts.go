@@ -640,6 +640,7 @@ func BuildSystemPromptSections(
 		sections[2].Content += "\nUse " + language +
 			" by default; follow the user's explicit language and output-format requests."
 	}
+	sections[2].Content += "\nCRITICAL: If the user's query or reference documents are in Vietnamese, you MUST respond in Vietnamese."
 	var names []string
 	if options != nil {
 		names = options.SelectedTools
