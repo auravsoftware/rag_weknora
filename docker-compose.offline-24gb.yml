@@ -200,10 +200,8 @@ services:
       - "${VLLM_MAX_MODEL_LEN:-16384}"
       - "--max-num-seqs"
       - "${VLLM_MAX_NUM_SEQS:-8}"
-      - "--limit-mm-per-prompt"
-      - "image=4"
       - "--dtype"
-      - "half"
+      - "auto"
       - "--trust-remote-code"
       - "--port"
       - "7670"
@@ -252,6 +250,8 @@ services:
       - "float16"
       - "--api-key"
       - "local-offline-key"
+      - "--url-prefix"
+      - "/v1"
     deploy:
       resources:
         reservations:
@@ -260,7 +260,7 @@ services:
               count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7671/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:7671/v1/health || curl -f http://localhost:7671/health"]
       interval: 30s
       timeout: 10s
       retries: 5

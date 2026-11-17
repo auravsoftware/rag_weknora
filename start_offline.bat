@@ -76,4 +76,11 @@ echo   - DocReader Parser             : Cổng 7672
 echo ================================================================================
 echo   Mở trình duyệt truy cập ngay: http://localhost:7666
 echo ================================================================================
+echo   * LƯU Ý KHI KHỞI CHẠY LẦN ĐẦU:
+echo     Container vLLM và Infinity sẽ tải model (~8GB) về models_cache\huggingface.
+echo     Để theo dõi tiến trình tải model vLLM (Qwen2.5-VL), mở CMD mới và gõ:
+echo        docker logs -f WeKnora-vllm-qwen25-vl
+echo     Để theo dõi tiến trình tải model Infinity (Embedding/Reranker), gõ:
+echo        docker logs -f WeKnora-infinity-models
+echo ================================================================================
 pause
