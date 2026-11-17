@@ -30,6 +30,12 @@ func IsImageEvidence(r *types.SearchResult) bool {
 	if r == nil {
 		return false
 	}
+	// Scanned document pages should NOT be attached as raw vision images
+	// because their content is text; attaching full-page images floods the context
+	// window with thousands of vision tokens and causes verbatim duplicate output.
+	if r.Metadata["image_source_type"] == "scanned_pdf" {
+		return false
+	}
 	return len(r.MatchedImages) > 0 || r.ChunkType == string(types.ChunkTypeImageVector) ||
 		r.Metadata[types.MetadataImageVectorMatch] == "true" ||
 		r.Metadata[types.MetadataKeptBy] == types.KeptByImageVector

@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -4218,6 +4220,15 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 		convertResult.AudioData = nil
 	}
 
+	// Step 1.6: VLM OCR for scanned PDF / image-only documents
+	// If the document is classified as scanned_pdf or has very low text with page images,
+	// run VLM OCR (Qwen2.5-VL) on the pages to extract text before chunking.
+	// This ensures chunks contain real text for BM25 and vector indexing, rather than
+	// empty chunks with only image links.
+	if err := s.understandScannedPDFWithVLM(ctx, kb, knowledge, eff, convertResult); err != nil {
+		logger.Warnf(ctx, "[VLM OCR] Pre-chunk OCR encountered error for %s: %v", knowledge.ID, err)
+	}
+
 	// Normalize inline HTML tables from any parser engine (MinerU, builtin,
 	// markitdown, paddleocr-vl, ...) into GFM, or row-newline-separated HTML
 	// for merged / non-GFM tables, so the chunker can split them.
@@ -5033,4 +5044,145 @@ func cutLogPreview(s string, limit int) string {
 		cut--
 	}
 	return s[:cut] + "..."
+}
+
+// understandScannedPDFWithVLM checks if the converted document is a scanned PDF
+// (or image-only document with low text yield) and runs VLM OCR (e.g. Qwen2.5-VL)
+// on each page image before chunking.
+//
+// This ensures BM25 and vector embeddings index real extracted text, and prevents
+// raw scanned pages from creating empty chunks that contain only image references.
+func (s *knowledgeService) understandScannedPDFWithVLM(
+	ctx context.Context,
+	kb *types.KnowledgeBase,
+	knowledge *types.Knowledge,
+	eff types.EffectiveProcessConfig,
+	convertResult *types.ReadResult,
+) error {
+	if convertResult == nil || len(convertResult.ImageRefs) == 0 {
+		return nil
+	}
+
+	isScanned := false
+	if convertResult.Metadata != nil && convertResult.Metadata["image_source_type"] == "scanned_pdf" {
+		isScanned = true
+	} else if approxTextContentRunes(convertResult.MarkdownContent) < 50 && len(convertResult.ImageRefs) > 0 {
+		isScanned = true
+	}
+
+	if !isScanned {
+		return nil
+	}
+
+	// Resolve VLM model: prioritize effective process config, then KB setting, then default VLM model
+	modelID := eff.VLMConfig.ModelID
+	if modelID == "" && kb != nil {
+		modelID = kb.VLMConfig.ModelID
+	}
+	if modelID == "" && s.modelService != nil {
+		if models, err := s.modelService.ListModels(ctx); err == nil {
+			if def := types.PickDefaultModel(models, types.ModelTypeVLLM); def != nil {
+				modelID = def.ID
+			}
+		}
+	}
+	if modelID == "" || s.modelService == nil {
+		logger.Warnf(ctx, "[VLM OCR] No VLM model available for scanned PDF OCR (kb=%s, knowledge=%s)", kb.ID, knowledge.ID)
+		return nil
+	}
+
+	vlmModel, err := s.modelService.GetVLMModel(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("load VLM model %s: %w", modelID, err)
+	}
+
+	logger.Infof(ctx, "[VLM OCR] Starting pre-chunk OCR for %s with model %s on %d images",
+		knowledge.ID, modelID, len(convertResult.ImageRefs))
+
+	concurrency := temporaryDocumentOCRConcurrency()
+	if concurrency <= 0 {
+		concurrency = 4
+	}
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	ocrResults := make([]string, len(convertResult.ImageRefs))
+
+	for idx, ref := range convertResult.ImageRefs {
+		imgBytes := ref.ImageData
+		if len(imgBytes) == 0 && convertResult.ImageDirPath != "" && ref.Filename != "" {
+			if data, readErr := os.ReadFile(filepath.Join(convertResult.ImageDirPath, ref.Filename)); readErr == nil {
+				imgBytes = data
+			}
+		}
+		if len(imgBytes) == 0 {
+			continue
+		}
+
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, b []byte) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			rawText, predictErr := vlmModel.Predict(ctx, [][]byte{b}, vlmOCRScannedPDFPrompt)
+			if predictErr != nil {
+				logger.Warnf(ctx, "[VLM OCR] OCR failed on image %d for %s: %v", i+1, knowledge.ID, predictErr)
+				return
+			}
+			cleaned, vErr := validateOCRText(rawText)
+			if vErr != nil {
+				logger.Warnf(ctx, "[VLM OCR] OCR rejected on image %d for %s: %v", i+1, knowledge.ID, vErr)
+				return
+			}
+			ocrResults[i] = strings.TrimSpace(cleaned)
+		}(idx, imgBytes)
+	}
+	wg.Wait()
+
+	// Interweave extracted text into MarkdownContent right after each page image reference
+	for idx, ref := range convertResult.ImageRefs {
+		ocr := ocrResults[idx]
+		if ocr == "" {
+			continue
+		}
+		replaced := false
+		for _, target := range []string{ref.OriginalRef, ref.Filename} {
+			if target == "" {
+				continue
+			}
+			idxInMd := strings.Index(convertResult.MarkdownContent, target)
+			if idxInMd >= 0 {
+				endIdx := idxInMd + len(target)
+				if endIdx < len(convertResult.MarkdownContent) && convertResult.MarkdownContent[endIdx] == ')' {
+					endIdx++
+				} else if endIdx < len(convertResult.MarkdownContent) && convertResult.MarkdownContent[endIdx] == '"' {
+					endIdx++
+					if endIdx < len(convertResult.MarkdownContent) && convertResult.MarkdownContent[endIdx] == '>' {
+						endIdx++
+					}
+				}
+				before := convertResult.MarkdownContent[:endIdx]
+				after := convertResult.MarkdownContent[endIdx:]
+				convertResult.MarkdownContent = before + "\n\n" + ocr + "\n\n" + after
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			if strings.TrimSpace(convertResult.MarkdownContent) == "" {
+				convertResult.MarkdownContent = ocr
+			} else {
+				convertResult.MarkdownContent += "\n\n" + ocr
+			}
+		}
+	}
+
+	if convertResult.Metadata == nil {
+		convertResult.Metadata = make(map[string]string)
+	}
+	convertResult.Metadata["ocr_processed"] = "vlm"
+	convertResult.Metadata["ocr_model"] = modelID
+	logger.Infof(ctx, "[VLM OCR] Completed pre-chunk OCR for %s (total text length=%d)",
+		knowledge.ID, len(convertResult.MarkdownContent))
+	return nil
 }
