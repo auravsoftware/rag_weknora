@@ -48,14 +48,18 @@ var VisualSeparatorPattern = regexp.MustCompile(`(?m)^[ \t]*(?:-{3,}|={3,}|\*{3,
 // usually denote a hard section break.
 var ExcessiveBlanksPattern = regexp.MustCompile(`\n{3,}`)
 
-// PageFooterPattern matches typical "Seite X von Y" / "Page X of Y" lines.
-var PageFooterPattern = regexp.MustCompile(`(?mi)^[ \t]*(?:Seite|Page|页码?)\s+\d+(?:\s*(?:von|of|/)\s*\d+)?[ \t]*$`)
+// PageFooterPattern matches typical "Seite X von Y" / "Page X of Y" / "Trang X/Y" lines.
+var PageFooterPattern = regexp.MustCompile(`(?mi)^[ \t]*(?:Seite|Page|Trang|页码?)\s+\d+(?:\s*(?:von|of|/|trên)\s*\d+)?[ \t]*$`)
 
 // GermanChapterPattern matches German chapter / section markers.
 var GermanChapterPattern = regexp.MustCompile(`(?m)^[ \t]*(?:Kapitel|Abschnitt|Teil)\s+(?:[0-9]+|[IVX]{1,5})[\.: ].{0,200}$`)
 
 // EnglishChapterPattern matches English chapter / section markers.
 var EnglishChapterPattern = regexp.MustCompile(`(?m)^[ \t]*(?:Chapter|Section|Part)\s+(?:[0-9]+|[IVX]{1,5})[\.: ].{0,200}$`)
+
+// VietnameseChapterPattern matches Vietnamese legal/document section markers
+// such as "Phần I", "Chương II", "Mục 1", "Tiểu mục 2", "Điều 15.", "Khoản 1.".
+var VietnameseChapterPattern = regexp.MustCompile(`(?mi)^[ \t]*(?:Phần|Chương|Mục|Tiểu\s+mục|Điều|Khoản)\s+(?:thứ\s+\S+|[0-9]+|[IVXLCDM]{1,7})[\.: \t].{0,200}$`)
 
 // ChineseChapterPattern matches CJK chapter / section markers like 第一章,
 // 第3节, 第 1 章 (whitespace between 第 / numeral / unit is tolerated).
@@ -67,7 +71,7 @@ func SentenceSeparators(lang string) []string {
 	switch lang {
 	case LangChinese:
 		return []string{"。", "！", "？", "；", "\n"}
-	case LangGerman, LangEnglish:
+	case LangGerman, LangEnglish, LangVietnamese:
 		return []string{". ", "! ", "? ", "; ", "\n"}
 	default:
 		return []string{"。", "！", "？", "；", ". ", "! ", "? ", "; ", "\n"}
@@ -79,7 +83,7 @@ func SentenceSeparators(lang string) []string {
 // that auto-detected documents still match.
 func ChapterPatternsForLangs(langs []string) []*regexp.Regexp {
 	if len(langs) == 0 {
-		return []*regexp.Regexp{GermanChapterPattern, EnglishChapterPattern, ChineseChapterPattern}
+		return []*regexp.Regexp{GermanChapterPattern, EnglishChapterPattern, VietnameseChapterPattern, ChineseChapterPattern}
 	}
 	var out []*regexp.Regexp
 	for _, l := range langs {
@@ -87,13 +91,15 @@ func ChapterPatternsForLangs(langs []string) []*regexp.Regexp {
 		case LangGerman:
 			out = append(out, GermanChapterPattern)
 		case LangEnglish:
-			out = append(out, EnglishChapterPattern)
+			out = append(out, EnglishChapterPattern, VietnameseChapterPattern)
+		case LangVietnamese:
+			out = append(out, VietnameseChapterPattern)
 		case LangChinese:
 			out = append(out, ChineseChapterPattern)
 		}
 	}
 	if len(out) == 0 {
-		out = []*regexp.Regexp{GermanChapterPattern, EnglishChapterPattern, ChineseChapterPattern}
+		out = []*regexp.Regexp{GermanChapterPattern, EnglishChapterPattern, VietnameseChapterPattern, ChineseChapterPattern}
 	}
 	return out
 }

@@ -69,6 +69,8 @@ export const useMenuStore = defineStore('menuStore', () => {
 
   const liteHiddenPaths = new Set(['logout', 'organizations'])
 
+  const hiddenMenuPaths = new Set(['artifacts', 'agents', 'automations', 'toolbox', 'organizations'])
+
   // 共享空间 (organizations) 仅对当前空间的 admin / owner 暴露入口。
   // viewer / contributor 即便在共享空间里拥有资源，也无需自行管理共享关系，
   // 入口在侧栏只会徒增噪音；后端 RBAC 才是权限的最终来源（见 middleware/rbac.go）。
@@ -76,6 +78,9 @@ export const useMenuStore = defineStore('menuStore', () => {
     const authStore = useAuthStore()
     const deploymentCapabilities = useDeploymentCapabilitiesStore()
     return menuArr.filter(item => {
+      if (hiddenMenuPaths.has(item.path)) {
+        return false
+      }
       if (authStore.isLiteMode && liteHiddenPaths.has(item.path)) {
         return false
       }

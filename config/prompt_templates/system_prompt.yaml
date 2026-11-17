@@ -16,15 +16,20 @@ templates:
       ja-JP:
         name: "ナレッジベースQ&Aアシスタント"
         description: "ほとんどのシナリオに適した基本的なナレッジベースQ&Aテンプレート"
+      vi-VN:
+        name: "Trợ lý Hỏi đáp Tài liệu (RAG)"
+        description: "Mẫu hỏi đáp chuẩn có đối chiếu nguồn trích dẫn và kiểm tra hiệu lực văn bản"
     default: true
     has_knowledge_base: true
     content: |
-      You are WeKnora, a knowledge-base question-answering assistant developed by Tencent.
-      Answer factual questions about the knowledge base using the reference materials supplied for the current request. You may reason, calculate, summarize, or translate those materials, but do not invent missing source facts.
-      Distinguish what the sources state from your inferences. If sources disagree, compare their dates, scope, and provenance and explain unresolved differences.
-      If the materials do not answer the question, say what is missing and give a useful next step. Do not claim that the absence of a retrieval result proves something does not exist.
-      Use the response format and level of detail requested by the user. Runtime instructions define source handling, citation syntax, and image presentation.
-      Default response language: {{language}}; follow an explicit request for another language.
+      Bạn là Trợ lý Tra cứu & Hỏi đáp Tài liệu thông minh (WeKnora RAG).
+      Hãy trả lời chính xác các câu hỏi dựa trên tài liệu tham khảo (Reference materials) được cung cấp cho yêu cầu hiện tại. Bạn có thể suy luận, tính toán, tóm tắt hoặc dịch từ tài liệu được cung cấp, nhưng TUYỆT ĐỐI KHÔNG tự bịa đặt thông tin không có trong nguồn.
+      Khi tài liệu có đính kèm siêu dữ liệu hành chính/pháp lý (`Tiêu đề`, `Nơi ban hành`, `Ngày ban hành`, `Ngày hiệu lực`, `Ngày hết hiệu lực`, `Tình trạng hiệu lực`), hãy ưu tiên kiểm tra tình trạng hiệu lực và ngày ban hành:
+      - Nếu hai văn bản có nội dung mâu thuẫn, hãy đối chiếu ngày ban hành, ngày hiệu lực, cơ quan ban hành và ưu tiên văn bản đang còn hiệu lực mới nhất, đồng thời nêu rõ sự khác biệt cho người dùng.
+      - Nếu câu hỏi trích xuất thông tin từ văn bản đã hết hiệu lực hoặc chưa có hiệu lực, hãy cảnh báo rõ ràng tình trạng hiệu lực của văn bản đó trong câu trả lời.
+      Phân biệt rõ nội dung trích từ tài liệu nguồn và phần suy luận của bạn. Nếu tài liệu tham khảo không đủ thông tin để trả lời, hãy nêu rõ phần thông tin còn thiếu.
+      Tuân thủ nghiêm ngặt quy tắc trích dẫn nguồn (citation syntax) của hệ thống để người dùng có thể truy nguyên tài liệu gốc.
+      Ngôn ngữ trả lời mặc định: {{language}} (trừ khi người dùng yêu cầu ngôn ngữ khác).
 
   - id: "expert_assistant"
     name: "Domain Expert"
@@ -42,6 +47,9 @@ templates:
       ja-JP:
         name: "ドメインエキスパート"
         description: "技術・専門領域に適した専門的で詳細な回答スタイル"
+      vi-VN:
+        name: "Trợ lý Chuyên gia Nghiệp vụ"
+        description: "Phong cách giải đáp chuyên sâu, phù hợp phân tích quy định và kỹ thuật"
     has_knowledge_base: true
     content: |
       You are WeKnora, a senior domain expert assistant developed by Tencent, with extensive professional knowledge and practical experience.
@@ -75,6 +83,9 @@ templates:
       ja-JP:
         name: "カスタマーサービス"
         description: "カスタマーサポートに適した親しみやすく温かみのある対応スタイル"
+      vi-VN:
+        name: "Trợ lý Hỗ trợ & Tư vấn"
+        description: "Phong cách thân thiện, rõ ràng, phù hợp giải đáp thắc mắc"
     has_knowledge_base: true
     content: |
       You are WeKnora, a professional and friendly customer service assistant developed by Tencent, dedicated to providing quality service experiences for users.
@@ -108,6 +119,9 @@ templates:
       ja-JP:
         name: "テクニカルサポート"
         description: "コード例を含む専門的な技術問題の解決"
+      vi-VN:
+        name: "Hỗ trợ Kỹ thuật"
+        description: "Giải đáp chuyên sâu các vấn đề kỹ thuật kèm ví dụ minh họa"
     has_knowledge_base: true
     content: |
       You are WeKnora, a professional technical support engineer developed by Tencent, responsible for answering technical questions.
@@ -142,6 +156,9 @@ templates:
       ja-JP:
         name: "汎用チャット"
         description: "ナレッジベースに依存しない汎用の会話アシスタント"
+      vi-VN:
+        name: "Hội thoại Chung"
+        description: "Trợ lý hội thoại đa năng không phụ thuộc kho tài liệu"
     has_knowledge_base: false
     content: |
       You are WeKnora, an intelligent conversational assistant developed by Tencent, capable of natural and fluent dialogue with users.
@@ -170,6 +187,9 @@ templates:
       ja-JP:
         name: "Web検索アシスタント"
         description: "Web検索を組み合わせて最新情報を取得"
+      vi-VN:
+        name: "Trợ lý Tìm kiếm Web"
+        description: "Kết hợp tìm kiếm trực tuyến và kho tài liệu"
     has_knowledge_base: true
     has_web_search: true
     content: |

@@ -1,110 +1,60 @@
-# config/builtin_models.yaml — declarative built-in models.
+# config/builtin_models.yaml.example — Mẫu cấu hình Model Offline mặc định cho 1x GPU 24GB VRAM.
 #
-# Copy to config/builtin_models.yaml (or point BUILTIN_MODELS_CONFIG at a custom
-# path) to enable. Each entry below is inserted into the `models` table with
-# is_builtin=true and becomes visible to every tenant.
-#
-# How values reach the file
-# -------------------------
-# Any string field can reference an env var with ${NAME}. Unset env vars are
-# left as the literal ${NAME} so misconfiguration surfaces clearly in upstream
-# API calls instead of producing a silent empty token. Non-string fields
-# (type, source, is_default, dimension, truncate_prompt_tokens) must stay
-# literal because YAML parses them as their target type.
-#
-# How env vars reach the container
-# --------------------------------
-# By default the app service in docker-compose.yml loads .env via
-#   env_file:
-#     - path: .env
-#       required: false
-# so anything you put in .env is auto-passed to the container. There is no
-# need to list each var separately under `environment:`.
-#
-# Re-applied on every application startup — editing the file and restarting is
-# enough for changes to take effect. Entries removed from the file are NOT
-# auto-deleted from the database; clean them up manually if you need to.
+# Sao chép thành config/builtin_models.yaml (hoặc trỏ BUILTIN_MODELS_CONFIG tới đường dẫn tùy chỉnh)
+# để tự động đăng ký các model mặc định khi khởi động hệ thống.
 
-builtin_models: []
+builtin_models:
+  - id: builtin-qwen25-vl-llm
+    name: Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+    type: KnowledgeQA
+    source: remote
+    is_default: true
+    description: "Qwen2.5-VL-7B-Instruct (Offline LLM Hỏi đáp RAG & Tóm tắt tài liệu - dùng chung vLLM với OCR)"
+    parameters:
+      base_url: http://vllm-qwen25-vl:6670/v1
+      api_key: local-offline-key
+      provider: generic
+      interface_type: openai
+      supports_vision: true
+      context_window: 16384
+      max_output_tokens: 4096
 
-# ----- Example: env-driven entries — uncomment and adapt --------------------
-#
-# builtin_models:
-#   - id: builtin-llm-default
-#     type: KnowledgeQA          # KnowledgeQA | Embedding | Rerank | VLLM | ASR
-#     source: remote             # remote (default) | local | ...
-#     is_default: true
-#     name: ${LLM_MODEL_NAME}
-#     parameters:
-#       base_url: ${LLM_BASE_URL}
-#       api_key: ${LLM_API_KEY}
-#       provider: ${LLM_PROVIDER}  # openai | generic | aliyun | moonshot | ...
-#       context_window: 200000     # optional; omit to use the 200K default
-#
-#   - id: builtin-embedding-default
-#     type: Embedding
-#     source: remote
-#     is_default: true
-#     name: ${EMBEDDING_MODEL_NAME}
-#     parameters:
-#       base_url: ${EMBEDDING_BASE_URL}
-#       api_key: ${EMBEDDING_API_KEY}
-#       provider: ${EMBEDDING_PROVIDER}
-#       embedding_parameters:
-#         dimension: 1536
-#         truncate_prompt_tokens: 0
-#
-#   - id: builtin-rerank-default
-#     type: Rerank
-#     source: remote
-#     parameters:
-#       base_url: ${RERANK_BASE_URL}
-#       api_key: ${RERANK_API_KEY}
-#       provider: ${RERANK_PROVIDER}
-#
-# ----- Example: one local Ollama for embedding and generation ---------------
-# source: local uses OLLAMA_BASE_URL only. Embedding and chat share that
-# process; a second Ollama is not required. ${EMBEDDING_MODEL_NAME} is read
-# only because this file references it (see .env.example section D2).
-# dimension is a literal and must match the pulled model (the CLI example
-# nomic-embed-text uses 768). Uncomment this list on its own — do not also
-# uncomment the remote embedding entry above, or you will register two defaults.
-#
-# builtin_models:
-#   - id: builtin-ollama-chat
-#     type: KnowledgeQA
-#     source: local
-#     name: ${LLM_MODEL_NAME}            # Ollama chat model, e.g. qwen2.5:7b
-#   - id: builtin-ollama-embedding
-#     type: Embedding
-#     source: local
-#     name: ${EMBEDDING_MODEL_NAME}      # Ollama embedding model name
-#     parameters:
-#       embedding_parameters:
-#         dimension: 768
-#
-# ----- Example: literal values (no env indirection) -------------------------
-#
-# builtin_models:
-#   - id: builtin-openai-chat
-#     name: gpt-4o-mini
-#     type: KnowledgeQA
-#     source: remote
-#     is_default: false
-#     parameters:
-#       base_url: https://api.openai.com/v1
-#       api_key: ${OPENAI_API_KEY}
-#       provider: openai
-#       context_window: 200000     # optional; omit to use the 200K default
-#       # Optional catalog overrides for chat models. `api` forces the wire
-#       # protocol; `compat` is the flat protocol object documented in
-#       # website-docs/03-features/06-models.md (协议兼容覆盖 compat JSON);
-#       # `thinking_levels` maps the
-#       # off/auto/minimal/low/medium/high/xhigh/max ladder to vendor values.
-#       # spec:
-#       #   api: openai-completions
-#       #   compat:
-#       #     max_tokens_field: max_tokens
-#       #     thinking_format: thinking-type
-#       #   thinking_levels:
-#       #     xhigh: high
+  - id: builtin-qwen25-vl-ocr
+    name: Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+    type: VLLM
+    source: remote
+    is_default: true
+    description: "Qwen2.5-VL-7B-Instruct (Offline VLM OCR nhận diện PDF Scan, bảng biểu, con dấu - dùng chung vLLM với LLM)"
+    parameters:
+      base_url: http://vllm-qwen25-vl:6670/v1
+      api_key: local-offline-key
+      provider: generic
+      interface_type: openai
+      supports_vision: true
+      context_window: 16384
+      max_output_tokens: 4096
+
+  - id: builtin-bge-m3-embedding
+    name: BAAI/bge-m3
+    type: Embedding
+    source: remote
+    is_default: true
+    description: "BAAI/bge-m3 (Offline Multilingual Embedding 1024 chiều tối ưu tiếng Việt)"
+    parameters:
+      base_url: http://infinity-models:6671/v1
+      api_key: local-offline-key
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 0
+
+  - id: builtin-bge-reranker-v2-m3
+    name: BAAI/bge-reranker-v2-m3
+    type: Rerank
+    source: remote
+    is_default: true
+    description: "BAAI/bge-reranker-v2-m3 (Offline Cross-Encoder Reranker chấm điểm lại ngữ cảnh tiếng Việt)"
+    parameters:
+      base_url: http://infinity-models:6671/v1
+      api_key: local-offline-key
+      provider: generic

@@ -17,6 +17,8 @@ interface Tag {
 
 interface KnowledgeItem {
   id: string;
+  title?: string;
+  display_name?: string;
   file_name: string;
   original_file_name?: string;
   folder_path?: string;
@@ -24,6 +26,7 @@ interface KnowledgeItem {
   file_size?: number | string;
   type?: string;
   tags?: Tag[];
+  custom_metadata?: Record<string, any>;
   parse_status?: string;
   summary_status?: string;
   updated_at?: string;
@@ -34,6 +37,22 @@ interface KnowledgeItem {
   stalled_minutes?: number;
   stall_state?: string;
 }
+
+const getDocValidity = (item: KnowledgeItem): { label: string; theme: 'success' | 'warning' | 'danger' } | null => {
+  const meta = item.custom_metadata;
+  if (!meta) return null;
+  const eff = typeof meta.effective_date === 'string' ? meta.effective_date.trim() : '';
+  const exp = typeof meta.expiration_date === 'string' ? meta.expiration_date.trim() : '';
+  if (!eff && !exp) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (exp && exp < today) {
+    return { label: t('knowledgeBase.validityExpired'), theme: 'danger' };
+  }
+  if (eff && eff > today) {
+    return { label: t('knowledgeBase.validityPending'), theme: 'warning' };
+  }
+  return { label: t('knowledgeBase.validityActive'), theme: 'success' };
+};
 
 const props = defineProps<{
   items: KnowledgeItem[];
@@ -331,10 +350,29 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
             :file-name="item.file_type ? `document.${item.file_type.toLowerCase()}` : (item.original_file_name || item.file_name)" />
           <div class="row-file-text">
             <div class="row-title-line">
-              <button type="button" class="row-file-name" :title="item.description ? `${item.file_name}\n${item.description}` : item.file_name"
-                @click.stop="emit('open', item)">{{ item.file_name }}</button>
+              <button type="button" class="row-file-name" :title="item.description ? `${item.display_name || item.file_name}\n${item.description}` : (item.display_name || item.file_name)"
+                @click.stop="emit('open', item)">{{ item.display_name || item.file_name }}</button>
+              <t-tag v-if="getDocValidity(item)" size="small" :theme="getDocValidity(item)!.theme" variant="light-outline" style="margin-left: 8px; flex-shrink: 0;">
+                {{ getDocValidity(item)!.label }}
+              </t-tag>
             </div>
             <span class="row-file-meta">
+              <template v-if="item.custom_metadata?.issuing_authority">
+                <span><strong>{{ t('uploadConfirm.issuingAuthorityLabel') }}:</strong> {{ item.custom_metadata.issuing_authority }}</span>
+                <span class="meta-sep" aria-hidden="true">·</span>
+              </template>
+              <template v-if="item.custom_metadata?.issue_date">
+                <span><strong>{{ t('uploadConfirm.issueDateLabel') }}:</strong> {{ item.custom_metadata.issue_date }}</span>
+                <span class="meta-sep" aria-hidden="true">·</span>
+              </template>
+              <template v-if="item.custom_metadata?.effective_date">
+                <span><strong>{{ t('uploadConfirm.effectiveDateLabel') }}:</strong> {{ item.custom_metadata.effective_date }}</span>
+                <span class="meta-sep" aria-hidden="true">·</span>
+              </template>
+              <template v-if="item.custom_metadata?.expiration_date">
+                <span><strong>{{ t('uploadConfirm.expirationDateLabel') }}:</strong> {{ item.custom_metadata.expiration_date }}</span>
+                <span class="meta-sep" aria-hidden="true">·</span>
+              </template>
               <span class="row-source"><t-icon :name="getSourceInfo(item).icon" />{{ getSourceInfo(item).label }}</span>
               <template v-if="formatFileSize(item.file_size)">
                 <span class="meta-sep" aria-hidden="true">·</span>

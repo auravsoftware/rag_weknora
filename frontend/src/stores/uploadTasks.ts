@@ -23,6 +23,8 @@ export const useUploadTasksStore = defineStore('uploadTasks', () => {
       {
         file: payload.file,
         fileName: payload.fileName,
+        title: payload.title,
+        custom_metadata: payload.customMetadata || batch.customMetadata,
         tag_ids: batch.tagIds,
         process_config: batch.processConfig,
       },

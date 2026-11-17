@@ -210,6 +210,7 @@ test('prune rebuild restores registered audit keys from baked-in English default
   const usage = collectI18nUsageFromSources()
   const emptyBundles = {
     'en-US': {},
+    'vi-VN': {},
     'zh-CN': {},
     'zh-TW': {},
     'ko-KR': {},

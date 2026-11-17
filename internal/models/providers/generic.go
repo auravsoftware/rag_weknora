@@ -48,9 +48,9 @@ func newGenericProvider() *Definition {
 	return &Definition{
 		ID:              GenericID,
 		Name:            "Custom (OpenAI-compatible)",
-		Names:           map[string]string{"zh-CN": "自定义 (OpenAI兼容接口)"},
+		Names:           map[string]string{"zh-CN": "自定义 (OpenAI兼容接口)", "vi-VN": "Tùy chỉnh (Tương thích OpenAI / vLLM / Infinity)"},
 		Description:     "Any OpenAI-compatible endpoint (vLLM, SGLang, Xinference, Ollama, ...)",
-		Descriptions:    map[string]string{"zh-CN": "任意 OpenAI 兼容接口（vLLM、SGLang、Xinference、Ollama 等）"},
+		Descriptions:    map[string]string{"zh-CN": "任意 OpenAI 兼容接口（vLLM、SGLang、Xinference、Ollama 等）", "vi-VN": "Endpoint tương thích chuẩn OpenAI (vLLM, Infinity, SGLang, Ollama, ...)"},
 		Icon:            genericIcon,
 		API:             api.APIOpenAICompletions,
 		Order:           0,
@@ -67,22 +67,22 @@ func newGenericProvider() *Definition {
 		ExtraFields: []ExtraField{{
 			Key:    models.ExtraScoreScale,
 			Label:  "Rerank score scale",
-			Labels: map[string]string{"zh-CN": "Rerank 分数标度"},
+			Labels: map[string]string{"zh-CN": "Rerank 分数标度", "vi-VN": "Thang điểm Rerank"},
 			Type:   "select",
 			Options: []ExtraFieldOption{
 				{
 					Label:  "Unnormalized logits (apply sigmoid)",
-					Labels: map[string]string{"zh-CN": "未归一化的 logit（应用 sigmoid）"},
+					Labels: map[string]string{"zh-CN": "未归一化的 logit（应用 sigmoid）", "vi-VN": "Logit chưa chuẩn hóa (áp dụng sigmoid)"},
 					Value:  "logit",
 				},
 				{
 					Label:  "Already normalized relevance (0..1)",
-					Labels: map[string]string{"zh-CN": "已归一化的相关度（0~1）"},
+					Labels: map[string]string{"zh-CN": "已归一化的相关度（0~1）", "vi-VN": "Điểm liên quan đã chuẩn hóa (0..1)"},
 					Value:  "probability",
 				},
 			},
 			Placeholder:  "match the endpoint output; vLLM Qwen3 no/yes recipe: probability",
-			Placeholders: map[string]string{"zh-CN": "按端点输出选择；vLLM Qwen3 no/yes 配方选择 probability"},
+			Placeholders: map[string]string{"zh-CN": "按端点输出选择；vLLM Qwen3 no/yes 配方选择 probability", "vi-VN": "Chọn theo đầu ra của endpoint; BGE-Reranker qua Infinity có thể để mặc định"},
 			// A gateway serves whatever reranker was deployed behind it, and
 			// serving configuration determines its output scale. A model
 			// family alone does not identify whether normalization was applied.
@@ -91,13 +91,13 @@ func newGenericProvider() *Definition {
 		}, {
 			Key:    models.ExtraTruncatePromptTokens,
 			Label:  "Rerank prompt truncation (vLLM)",
-			Labels: map[string]string{"zh-CN": "Rerank 提示词截断长度（vLLM）"},
+			Labels: map[string]string{"zh-CN": "Rerank 提示词截断长度（vLLM）", "vi-VN": "Giới hạn cắt ngắn token Rerank (vLLM)"},
 			Type:   "number",
 			// Off unless the operator asks: a runtime that does not implement
 			// the extension rejects the unknown field.
 			Required:     false,
 			Placeholder:  "empty unless the backend rejects long documents",
-			Placeholders: map[string]string{"zh-CN": "留空，除非后端因文档过长而报错"},
+			Placeholders: map[string]string{"zh-CN": "留空，除非后端因文档过长而报错", "vi-VN": "Để trống trừ khi backend từ chối tài liệu quá dài"},
 			ModelTypes:   []types.ModelType{types.ModelTypeRerank},
 		}},
 		Compat: VendorCompat{

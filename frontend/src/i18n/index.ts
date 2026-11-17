@@ -1,4 +1,5 @@
 import { createI18n } from 'vue-i18n'
+import viVN from './locales/vi-VN.ts'
 import zhCN from './locales/zh-CN.ts'
 import ruRU from './locales/ru-RU.ts'
 import enUS from './locales/en-US.ts'
@@ -9,6 +10,7 @@ import { BUILT_IN_DEFAULT, resolveDefaultLocale } from './resolveDefaultLocale.t
 import { pluralRules } from './pluralizationRules.ts'
 
 const messages = {
+  'vi-VN': viVN,
   'zh-CN': zhCN,
   'zh-TW': zhTW,
   'en-US': enUS,

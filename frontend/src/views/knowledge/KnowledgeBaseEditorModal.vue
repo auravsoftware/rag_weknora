@@ -26,7 +26,7 @@
               </div>
             </div>
 
-            <div class="form-item">
+            <div v-if="false" class="form-item">
               <label class="form-label required">{{ $t('knowledgeEditor.basic.typeLabel') }}</label>
               <t-radio-group
                 v-model="formData.type"
@@ -40,7 +40,7 @@
             </div>
 
             <!-- 索引策略 (紧跟类型选择) -->
-            <div v-if="!isFAQ" class="form-item">
+            <div v-if="false && !isFAQ" class="form-item">
               <label class="form-label required">{{ $t('knowledgeEditor.indexing.title') }}</label>
               <p class="form-tip">{{ $t('knowledgeEditor.indexing.description') }}</p>
               <div class="indexing-checks" :class="{ 'is-locked': isIndexingLocked }"
@@ -841,18 +841,10 @@ const navItems = computed(() => {
     items.push(
       { key: 'parser', icon: 'file-search', label: t('settings.parserEngine') },
       { key: 'multimodal', icon: 'image', label: t('knowledgeEditor.sidebar.multimodal') },
-      { key: 'asr', icon: 'sound', label: t('knowledgeEditor.sidebar.asr') },
       { key: 'storage', icon: 'cloud', label: t('knowledgeEditor.sidebar.storage') },
       { key: 'chunking', icon: 'file-copy', label: t('knowledgeEditor.sidebar.chunking') },
-      { key: 'graph', icon: 'chart-bubble', label: t('knowledgeEditor.sidebar.graph') },
       { key: 'advanced', icon: 'setting', label: t('knowledgeEditor.sidebar.advanced') }
     )
-    if (editorMode.value === 'edit' && activeKbId.value) {
-      items.push({ key: 'datasource', icon: 'cloud-download', label: t('knowledgeEditor.sidebar.datasource'), badge: dsCount.value || undefined })
-    }
-  }
-  if (editorMode.value === 'edit' && activeKbId.value && !authStore.isLiteMode) {
-    items.push({ key: 'share', icon: 'share', label: t('knowledgeEditor.sidebar.share') })
   }
   if (canViewActivity.value) {
     items.push({ key: 'activity', icon: 'history', label: t('knowledgeEditor.sidebar.activity') })
@@ -929,6 +921,7 @@ const applyDefaultModelsIfEmpty = () => {
   }
   if (!formData.value.multimodalConfig.vllmModelId && vlmModelId) {
     formData.value.multimodalConfig.vllmModelId = vlmModelId
+    formData.value.multimodalConfig.enabled = true
   }
   if (!formData.value.asrConfig.modelId && asrModelId) {
     formData.value.asrConfig.modelId = asrModelId

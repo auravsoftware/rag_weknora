@@ -140,6 +140,24 @@ func (s *knowledgeService) createKnowledgeFromFile(ctx context.Context,
 		return nil, types.NewStorageQuotaExceededError()
 	}
 
+	// Extract optional user-provided document title and custom_metadata passed from upload handler
+	var customTitle string
+	var customMetadataJSON types.JSON
+	if metadata != nil {
+		customTitle = strings.TrimSpace(metadata["__custom_title"])
+		if rawCustomMeta := strings.TrimSpace(metadata["__custom_metadata"]); rawCustomMeta != "" {
+			if err := ValidateCustomMetadataJSON(types.JSON(rawCustomMeta)); err != nil {
+				return nil, werrors.NewBadRequestError(err.Error())
+			}
+			customMetadataJSON = types.JSON(rawCustomMeta)
+		}
+		delete(metadata, "__custom_title")
+		delete(metadata, "__custom_metadata")
+		if len(metadata) == 0 {
+			metadata = nil
+		}
+	}
+
 	// Convert metadata to JSON format if provided
 	var metadataJSON types.JSON
 	if metadata != nil {
@@ -174,6 +192,13 @@ func (s *knowledgeService) createKnowledgeFromFile(ctx context.Context,
 		return nil, err
 	}
 
+	knowledgeTitle := safeFilename
+	if customTitle != "" {
+		if safeTitle, titleValid := secutils.ValidateInput(customTitle); titleValid && safeTitle != "" {
+			knowledgeTitle = safeTitle
+		}
+	}
+
 	// Prepare knowledge record
 	logger.Info(ctx, "Preparing knowledge record")
 	knowledge := &types.Knowledge{
@@ -182,7 +207,7 @@ func (s *knowledgeService) createKnowledgeFromFile(ctx context.Context,
 		KnowledgeBaseID:  kbID,
 		Type:             "file",
 		Channel:          defaultChannel(channel),
-		Title:            safeFilename,
+		Title:            knowledgeTitle,
 		FileName:         safeFilename,
 		FolderPath:       folderPath,
 		FileType:         getFileType(safeFilename),
@@ -194,6 +219,7 @@ func (s *knowledgeService) createKnowledgeFromFile(ctx context.Context,
 		UpdatedAt:        time.Now(),
 		EmbeddingModelID: kb.EmbeddingModelID,
 		Metadata:         metadataJSON,
+		CustomMetadata:   customMetadataJSON,
 	}
 
 	if processOverrides != nil {

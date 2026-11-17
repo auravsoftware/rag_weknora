@@ -37,6 +37,7 @@ export interface EnqueueUploadsInput {
   targetFolder?: string
   tagIds?: string[]
   processConfig?: KnowledgeProcessOverrides
+  customMetadata?: Record<string, string | number | boolean | null>
   uploads: UploadPayload[]
 }
 
@@ -90,6 +91,7 @@ export function createUploadTasks(deps: UploadTasksDeps) {
       targetFolder: input.targetFolder || '',
       tagIds: input.tagIds && input.tagIds.length > 0 ? [...input.tagIds] : undefined,
       processConfig: input.processConfig,
+      customMetadata: input.customMetadata,
     }, input.uploads)
     visible.value = true
     collapsed.value = false

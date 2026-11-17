@@ -17,6 +17,7 @@ import {
   MAX_FOLDER_DEPTH,
   MAX_FOLDER_PATH_LENGTH,
   MAX_FOLDER_SEGMENT_LENGTH,
+  mergeCustomFoldersIntoTree,
   normalizeFolderPath,
   ROOT_FOLDER_PATH,
   sortFolderOptions,
@@ -278,3 +279,15 @@ test('folderOptionFromPath derives picker row metadata from a canonical path', (
     ['archive', 'handbook', 'handbook/onboarding'],
   )
 })
+
+test('mergeCustomFoldersIntoTree inserts empty custom folders and nested subfolders into tree', () => {
+  const merged = mergeCustomFoldersIntoTree(
+    { total_count: 5, root_count: 1, folders },
+    ['phap-luat/nghi-dinh', 'handbook/policies'],
+  )
+  assert.ok(merged)
+  assert.equal(folderPathExists(merged.folders, 'phap-luat'), true)
+  assert.equal(folderPathExists(merged.folders, 'phap-luat/nghi-dinh'), true)
+  assert.equal(folderPathExists(merged.folders, 'handbook/policies'), true)
+})
+

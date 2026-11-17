@@ -14,7 +14,7 @@ conversation:
   rerank_threshold: 0.3
   rerank_top_k: 30
   fallback_strategy: "model"
-  fallback_response: "Sorry, I am unable to answer this question."
+  fallback_response: "Xin lỗi, tôi không tìm thấy thông tin phù hợp trong kho tài liệu để trả lời câu hỏi này."
   fallback_prompt_id: "default_fallback_prompt"  # from prompt_templates/fallback.yaml (mode: "model")
   enable_rewrite: true
   enable_query_expansion: true
@@ -44,7 +44,7 @@ conversation:
 knowledge_base:
   chunk_size: 512
   chunk_overlap: 50
-  split_markers: ["\n\n", "\n", "。"]
+  split_markers: ["\n\n", "\n", ". ", "。"]
   document_process_timeout: 2h
   image_processing:
     enable_multimodal: true

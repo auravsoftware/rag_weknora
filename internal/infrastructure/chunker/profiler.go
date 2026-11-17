@@ -127,7 +127,7 @@ func ProfileDocument(text string) *DocProfile {
 		if GermanChapterPattern.MatchString(line) {
 			p.GermanChapterCount++
 		}
-		if EnglishChapterPattern.MatchString(line) {
+		if EnglishChapterPattern.MatchString(line) || VietnameseChapterPattern.MatchString(line) {
 			p.EnglishChapterCount++
 		}
 		if ChineseChapterPattern.MatchString(line) {

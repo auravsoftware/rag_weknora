@@ -17,7 +17,7 @@ services:
     environment:
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-50}
       - MAX_SKILL_BUNDLE_SIZE_MB=${MAX_SKILL_BUNDLE_SIZE_MB:-256}
-      - DEFAULT_LOCALE=${DEFAULT_LOCALE:-}
+      - DEFAULT_LOCALE=${DEFAULT_LOCALE:-vi-VN}
       - APP_HOST=${APP_HOST:-app}
       # APP_BACKEND_PORT: the port NGINX proxies to (default 8080).
       # For local deployment this is the App container's listening port, independent of host-mapped APP_PORT.
@@ -59,10 +59,8 @@ services:
       # 同时设 true 并挂载实际 socket——这等同宿主机 root，仅私有化单机。
       # 入口脚本会按 socket GID 把 appuser 加入对应组（compose group_add 在 gosu 后无效）。
       # - /var/run/docker.sock:/var/run/docker.sock
-      # Optional: declarative built-in models. Copy config/builtin_models.yaml.example
-      # to config/builtin_models.yaml, edit it for your deployment, then
-      # uncomment the line below. See website-docs/03-features/06-models.md.
-      # - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+      # Declarative built-in models (pre-configured for 1x 24GB VRAM offline stack).
+      - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
       # Optional: model catalog overlay (extra vendors / model overrides).
       # Copy config/models.json.example to config/models.json, then
       # - ./config/models.json:/app/config/models.json:ro
@@ -98,11 +96,11 @@ services:
       # gin mod
       # 可选值: debug(开发模式，有详细日志), release(生产模式，禁用Swagger文档)
       - GIN_MODE=${GIN_MODE:-release}
-      # 时区，默认为Asia/Shanghai
-      - TZ=${TZ:-Asia/Shanghai}
+      # 时区，默认为Asia/Ho_Chi_Minh
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
       # 文档处理语言（问题/摘要生成）。优先级：此环境变量（部署级覆盖，非空即生效）
-      # > Accept-Language 请求头 > 内置默认值 (zh-CN)。留空则跟随请求方 Accept-Language。
-      - WEKNORA_LANGUAGE=${WEKNORA_LANGUAGE:-}
+      # > Accept-Language 请求头 > 内置默认值 (vi-VN)。留空则跟随请求方 Accept-Language。
+      - WEKNORA_LANGUAGE=${WEKNORA_LANGUAGE:-vi-VN}
       # Docker 沙箱默认关闭：本机 docker.sock 等同宿主机 root。
       # 系统管理员也可在「设置 → 系统设置」打开（立即生效）。未落库时读本变量。
       - WEKNORA_SANDBOX_DOCKER_ENABLED=${WEKNORA_SANDBOX_DOCKER_ENABLED:-false}
@@ -329,7 +327,7 @@ services:
       # DB host would skip the 5432 port block.)
       # doris-be: Stream Load follows FE→BE redirects that must receive Basic
       # credentials on whitelisted BE hosts.
-      - SSRF_WHITELIST_EXTRA=${SSRF_WHITELIST_EXTRA:-searxng,qdrant,milvus,weaviate,doris-fe,doris-be,minio}
+      - SSRF_WHITELIST_EXTRA=${SSRF_WHITELIST_EXTRA:-vllm-qwen25-vl,infinity-models,searxng,qdrant,milvus,weaviate,doris-fe,doris-be,minio}
       # 仅允许白名单出站（默认关闭）。开启前请把所有需要访问的地址加入白名单，
       # 见 website-docs/01-getting-started/04-configuration.md「开启 SSRF_DNS_WHITELIST_ONLY 之前」。
       - SSRF_DNS_WHITELIST_ONLY=${SSRF_DNS_WHITELIST_ONLY:-}

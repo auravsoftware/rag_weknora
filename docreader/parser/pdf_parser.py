@@ -238,9 +238,11 @@ def _extract_page_text(page) -> str:
 
 
 def _sanitize_pdf_text(text: str) -> str:
-    """Remove PDF text-layer placeholders and repair broken hyphenations."""
+    """Remove PDF text-layer placeholders, repair broken hyphenations, and normalize Unicode NFC."""
     if not text:
         return text
+    import unicodedata
+    text = unicodedata.normalize("NFC", text)
     text = _PDF_ARTIFACT_RE.sub("", text)
     text = _PDF_ARTIFACT_JOIN_RE.sub(r"\1\2", text)
     return text

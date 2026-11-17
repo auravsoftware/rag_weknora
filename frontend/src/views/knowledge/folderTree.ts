@@ -305,3 +305,59 @@ export function canMoveFolderTo(from: string, to: string): boolean {
   if (target === source) return false
   return !target.startsWith(`${source}/`)
 }
+
+function cloneFolderNodes(nodes: KnowledgeFolderNode[]): KnowledgeFolderNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    children: node.children ? cloneFolderNodes(node.children) : [],
+  }))
+}
+
+/**
+ * Merge client-side custom folder paths into the server folder tree so newly
+ * created empty folders are visible and selectable before files are uploaded.
+ */
+export function mergeCustomFoldersIntoTree(
+  tree: KnowledgeFolderTree | null,
+  customPaths: string[],
+): KnowledgeFolderTree | null {
+  if (!customPaths || customPaths.length === 0) return tree
+  const base: KnowledgeFolderTree = tree
+    ? {
+        total_document_count: tree.total_document_count ?? 0,
+        root_document_count: tree.root_document_count ?? 0,
+        folders: cloneFolderNodes(tree.folders ?? []),
+      }
+    : {
+        total_document_count: 0,
+        root_document_count: 0,
+        folders: [],
+      }
+
+  for (const rawPath of customPaths) {
+    const normalized = normalizeFolderPath(rawPath)
+    if (!normalized) continue
+    const segments = normalized.split('/')
+    let currentList = base.folders
+    let currentPath = ''
+    for (const seg of segments) {
+      currentPath = currentPath ? `${currentPath}/${seg}` : seg
+      let existing = currentList.find((node) => node.path === currentPath)
+      if (!existing) {
+        existing = {
+          path: currentPath,
+          name: seg,
+          document_count: 0,
+          total_count: 0,
+          children: [],
+        }
+        currentList.push(existing)
+        currentList.sort((a, b) => a.name.localeCompare(b.name))
+      }
+      if (!existing.children) existing.children = []
+      currentList = existing.children
+    }
+  }
+  return base
+}
+

@@ -53,14 +53,62 @@ interface MetadataDraftRow {
   type: MetadataValueType;
 }
 
+const STANDARD_METADATA_KEYS = [
+  'document_title',
+  'issuing_authority',
+  'issue_date',
+  'effective_date',
+  'expiration_date',
+] as const;
+
 let metadataRowSeed = 0;
 const metadataEditing = ref(false);
 const metadataDraft = ref<MetadataDraftRow[]>([]);
+const standardMetadataDraft = ref({
+  document_title: '',
+  issuing_authority: '',
+  issue_date: '',
+  effective_date: '',
+  expiration_date: '',
+});
 const metadataSaving = ref(false);
 const summaryRefreshing = ref(false);
 const summaryEditing = ref(false);
 const summaryDraft = ref('');
 const summarySaving = ref(false);
+
+const formatMetadataKey = (key: string): string => {
+  switch (key) {
+    case 'document_title':
+      return t('uploadConfirm.docTitleLabel');
+    case 'issuing_authority':
+      return t('uploadConfirm.issuingAuthorityLabel');
+    case 'issue_date':
+      return t('uploadConfirm.issueDateLabel');
+    case 'effective_date':
+      return t('uploadConfirm.effectiveDateLabel');
+    case 'expiration_date':
+      return t('uploadConfirm.expirationDateLabel');
+    default:
+      return key;
+  }
+};
+
+const detailValidityBadge = computed<{ label: string; theme: 'success' | 'warning' | 'danger' } | null>(() => {
+  const meta = props.details?.custom_metadata;
+  if (!meta) return null;
+  const eff = typeof meta.effective_date === 'string' ? meta.effective_date.trim() : '';
+  const exp = typeof meta.expiration_date === 'string' ? meta.expiration_date.trim() : '';
+  if (!eff && !exp) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (exp && exp < today) {
+    return { label: t('knowledgeBase.validityExpired'), theme: 'danger' };
+  }
+  if (eff && eff > today) {
+    return { label: t('knowledgeBase.validityPending'), theme: 'warning' };
+  }
+  return { label: t('knowledgeBase.validityActive'), theme: 'success' };
+});
 
 const startSummaryEdit = () => {
   summaryDraft.value = props.details?.description || '';
@@ -108,18 +156,26 @@ const makeMetadataRow = (key = '', value: unknown = ''): MetadataDraftRow => {
 };
 
 const syncMetadataDraft = () => {
-  metadataDraft.value = Object.entries(props.details?.custom_metadata || {})
+  const raw = props.details?.custom_metadata || {};
+  standardMetadataDraft.value = {
+    document_title: raw.document_title != null ? String(raw.document_title) : (props.details?.title || ''),
+    issuing_authority: raw.issuing_authority != null ? String(raw.issuing_authority) : '',
+    issue_date: raw.issue_date != null ? String(raw.issue_date) : '',
+    effective_date: raw.effective_date != null ? String(raw.effective_date) : '',
+    expiration_date: raw.expiration_date != null ? String(raw.expiration_date) : '',
+  };
+  metadataDraft.value = Object.entries(raw)
+    .filter(([key]) => !(STANDARD_METADATA_KEYS as readonly string[]).includes(key))
     .map(([key, value]) => makeMetadataRow(key, value));
 };
 
 const startMetadataEdit = () => {
   syncMetadataDraft();
-  if (!metadataDraft.value.length) metadataDraft.value.push(makeMetadataRow());
   metadataEditing.value = true;
 };
 
 const addMetadataRow = () => {
-  if (metadataDraft.value.length >= 20) return;
+  if (metadataDraft.value.length >= 15) return;
   metadataDraft.value.push(makeMetadataRow());
 };
 
@@ -149,6 +205,12 @@ const formatMetadataValue = (value: unknown) => {
 const saveMetadata = async () => {
   try {
     const value: Record<string, unknown> = {};
+    for (const stdKey of STANDARD_METADATA_KEYS) {
+      const stdVal = (standardMetadataDraft.value[stdKey] || '').trim();
+      if (stdVal) {
+        value[stdKey] = stdVal;
+      }
+    }
     for (const row of metadataDraft.value) {
       const key = row.key.trim();
       if (!key) throw new Error(t('knowledgeBase.metadataKeyRequired'));
@@ -160,6 +222,9 @@ const saveMetadata = async () => {
     metadataSaving.value = true;
     const result: any = await updateKnowledgeMetadata(props.details.id, value);
     props.details.custom_metadata = value;
+    if (typeof value.document_title === 'string' && value.document_title) {
+      props.details.title = value.document_title;
+    }
     metadataEditing.value = false;
     if (result?.data) {
       applySummaryState(result.data.summary_status, result.data.description);
@@ -1698,6 +1763,9 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
               <t-tooltip :content="$t('knowledgeBase.metadataCapabilityHint')" placement="top">
                 <t-icon name="info-circle" size="14px" class="metadata-capability-icon" />
               </t-tooltip>
+              <t-tag v-if="detailValidityBadge" size="small" :theme="detailValidityBadge.theme" variant="light-outline" style="margin-left: 6px;">
+                {{ detailValidityBadge.label }}
+              </t-tag>
               <span v-if="Object.keys(details.custom_metadata || {}).length" class="metadata-count">
                 {{ Object.keys(details.custom_metadata || {}).length }}/20
               </span>
@@ -1712,7 +1780,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
           <div v-if="!metadataEditing" class="metadata-display">
             <div v-if="Object.keys(details.custom_metadata || {}).length" class="metadata-grid">
               <div v-for="(value, key) in (details.custom_metadata || {})" :key="key" class="metadata-item">
-                <span class="metadata-item-key">{{ key }}</span>
+                <span class="metadata-item-key">{{ formatMetadataKey(String(key)) }}</span>
                 <span class="metadata-item-value">{{ formatMetadataValue(value) }}</span>
               </div>
             </div>
@@ -1724,6 +1792,28 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
           </div>
 
           <div v-else class="metadata-editor">
+            <div class="metadata-grid" style="margin-bottom: 12px;">
+              <div class="metadata-item">
+                <span class="metadata-item-key">{{ $t('uploadConfirm.docTitleLabel') }}</span>
+                <t-input v-model="standardMetadataDraft.document_title" clearable :placeholder="$t('uploadConfirm.docTitlePlaceholder')" />
+              </div>
+              <div class="metadata-item">
+                <span class="metadata-item-key">{{ $t('uploadConfirm.issuingAuthorityLabel') }}</span>
+                <t-input v-model="standardMetadataDraft.issuing_authority" clearable :placeholder="$t('uploadConfirm.issuingAuthorityPlaceholder')" />
+              </div>
+              <div class="metadata-item">
+                <span class="metadata-item-key">{{ $t('uploadConfirm.issueDateLabel') }}</span>
+                <t-input v-model="standardMetadataDraft.issue_date" type="date" clearable />
+              </div>
+              <div class="metadata-item">
+                <span class="metadata-item-key">{{ $t('uploadConfirm.effectiveDateLabel') }}</span>
+                <t-input v-model="standardMetadataDraft.effective_date" type="date" clearable />
+              </div>
+              <div class="metadata-item">
+                <span class="metadata-item-key">{{ $t('uploadConfirm.expirationDateLabel') }}</span>
+                <t-input v-model="standardMetadataDraft.expiration_date" type="date" clearable />
+              </div>
+            </div>
             <div v-for="row in metadataDraft" :key="row.id" class="metadata-editor-row">
               <t-input v-model="row.key" class="metadata-key-input" :placeholder="$t('knowledgeBase.metadataKeyPlaceholder')" />
               <t-select v-model="row.type" class="metadata-type-select" :options="metadataTypeOptions" />
@@ -1739,7 +1829,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
                 </t-button>
               </t-tooltip>
             </div>
-            <button v-if="metadataDraft.length < 20" type="button" class="metadata-add-row" @click="addMetadataRow">
+            <button v-if="metadataDraft.length < 15" type="button" class="metadata-add-row" @click="addMetadataRow">
               <t-icon name="add" size="15px" />
               <span>{{ $t('knowledgeBase.addMetadataField') }}</span>
             </button>

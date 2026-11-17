@@ -432,6 +432,7 @@ const inviteLookupLoading = ref(false)
 
 // Language options
 const languageOptions = [
+  { value: 'vi-VN', label: 'Tiếng Việt', shortLabel: 'VI', flag: '🇻🇳' },
   { value: 'zh-CN', label: '简体中文', shortLabel: '中文', flag: '🇨🇳' },
   { value: 'zh-TW', label: '繁體中文', shortLabel: '繁中', flag: '繁' },
   { value: 'en-US', label: 'English', shortLabel: 'EN', flag: '🇺🇸' },

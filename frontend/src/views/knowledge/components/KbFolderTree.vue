@@ -7,6 +7,16 @@
           :title="t('knowledgeBase.folderTree.totalDocuments', { count: tree.total_document_count })">
           {{ t('knowledgeBase.folderTree.totalDocuments', { count: tree.total_document_count }) }}
         </span>
+        <t-tooltip v-if="canEdit" :content="t('knowledgeBase.folderTree.createFolder')" placement="top">
+          <button
+            type="button"
+            class="kb-folder-tree__icon-btn"
+            :aria-label="t('knowledgeBase.folderTree.createFolder')"
+            @click="startCreate(selectedPath || ROOT_FOLDER_PATH)"
+          >
+            <t-icon name="folder-add" size="15px" />
+          </button>
+        </t-tooltip>
         <t-tooltip :content="t('knowledgeBase.folderTree.collapse')" placement="top">
           <button
             type="button"
@@ -31,6 +41,19 @@
     </div>
 
     <div v-if="!collapsed" class="kb-folder-tree__body">
+      <div v-if="creatingUnderPath !== null" class="kb-folder-create-row">
+        <t-icon name="folder-add" class="kb-folder-row__icon" />
+        <input
+          ref="createInputRef"
+          v-model="newFolderName"
+          class="kb-folder-row__rename"
+          :placeholder="creatingUnderPath ? `${creatingUnderPath}/...` : t('knowledgeBase.folderTree.newFolderPlaceholder')"
+          @click.stop
+          @keydown.enter.stop.prevent="commitCreate"
+          @keydown.esc.stop.prevent="cancelCreate"
+          @blur="commitCreate"
+        />
+      </div>
       <template v-if="loading && !tree">
         <div v-for="n in 5" :key="'folder-skel-' + n" class="kb-folder-tree__skeleton">
           <t-skeleton animation="gradient" :row-col="[{ width: '100%', height: '16px' }]" />
@@ -117,6 +140,10 @@
                 </button>
                 <template #content>
                   <div class="popup-menu kb-folder-row__menu" @click.stop>
+                    <div class="popup-menu-item" @click="onFolderMenuCreateChild(row)">
+                      <t-icon name="folder-add" class="menu-icon" />
+                      <span>{{ t('knowledgeBase.folderTree.createSubfolder') }}</span>
+                    </div>
                     <div class="popup-menu-item" @click="onFolderMenuRename(row)">
                       <t-icon name="edit" class="menu-icon" />
                       <span>{{ t('knowledgeBase.folderTree.rename') }}</span>
@@ -162,6 +189,7 @@ const emit = defineEmits<{
   select: [path: string]
   'update:collapsed': [collapsed: boolean]
   rename: [payload: { from: string; to: string }]
+  create: [path: string]
 }>()
 
 const { t } = useI18n()
@@ -174,6 +202,9 @@ const renamingPath = ref<string | null>(null)
 const menuOpenPath = ref<string | null>(null)
 const renameValue = ref('')
 const renameInputRef = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
+const creatingUnderPath = ref<string | null>(null)
+const newFolderName = ref('')
+const createInputRef = ref<HTMLInputElement | null>(null)
 
 const rows = computed(() => buildFolderRows(props.tree, expanded.value))
 
@@ -188,6 +219,37 @@ const toggle = (path: string) => {
   if (next.has(path)) next.delete(path)
   else next.add(path)
   expanded.value = next
+}
+
+const startCreate = async (parentPath: string) => {
+  creatingUnderPath.value = parentPath
+  newFolderName.value = ''
+  await nextTick()
+  createInputRef.value?.focus()
+}
+
+const cancelCreate = () => {
+  creatingUnderPath.value = null
+  newFolderName.value = ''
+}
+
+const commitCreate = () => {
+  if (creatingUnderPath.value === null) return
+  const parent = creatingUnderPath.value
+  const name = newFolderName.value.trim()
+  cancelCreate()
+  if (!name) return
+  const createdPath = joinFolderPath(parent, name)
+  if (!createdPath) return
+  const next = new Set(expanded.value)
+  folderAncestorPaths(createdPath).forEach((p) => next.add(p))
+  expanded.value = next
+  emit('create', createdPath)
+}
+
+const onFolderMenuCreateChild = async (row: FolderRow) => {
+  menuOpenPath.value = null
+  await startCreate(row.path)
 }
 
 const startRename = async (row: FolderRow) => {
@@ -516,6 +578,14 @@ watch(
 
 .kb-folder-row__menu {
   min-width: 140px;
+}
+
+.kb-folder-create-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
 }
 
 .kb-folder-row__rename {

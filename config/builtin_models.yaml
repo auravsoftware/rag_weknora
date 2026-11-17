@@ -1,0 +1,64 @@
+# config/builtin_models.yaml — Cấu hình Model Offline mặc định cho 1x GPU 24GB VRAM (RTX PRO 4000 Blackwell).
+#
+# Toàn bộ 4 tác vụ (RAG LLM Hỏi đáp, VLM OCR PDF Scan, Embedding đa ngữ, Reranker)
+# được khởi tạo tự động và chia sẻ chỉ 2 container suy luận nội bộ:
+#   1. vllm-qwen25-vl (http://vllm-qwen25-vl:8000/v1): Chạy Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+#      dùng chung cho cả KnowledgeQA (Trả lời RAG) và VLLM (OCR PDF Scan/Ảnh).
+#   2. infinity-models (http://infinity-models:7997/v1): Chạy đồng thời BAAI/bge-m3 (Embedding 1024-d)
+#      và BAAI/bge-reranker-v2-m3 (Cross-Encoder Reranker).
+
+builtin_models:
+  - id: builtin-qwen25-vl-llm
+    name: Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+    type: KnowledgeQA
+    source: remote
+    is_default: true
+    description: "Qwen2.5-VL-7B-Instruct (Offline LLM Hỏi đáp RAG & Tóm tắt tài liệu - dùng chung vLLM với OCR)"
+    parameters:
+      base_url: http://vllm-qwen25-vl:6670/v1
+      api_key: local-offline-key
+      provider: generic
+      interface_type: openai
+      supports_vision: true
+      context_window: 16384
+      max_output_tokens: 4096
+
+  - id: builtin-qwen25-vl-ocr
+    name: Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+    type: VLLM
+    source: remote
+    is_default: true
+    description: "Qwen2.5-VL-7B-Instruct (Offline VLM OCR nhận diện PDF Scan, bảng biểu, con dấu - dùng chung vLLM với LLM)"
+    parameters:
+      base_url: http://vllm-qwen25-vl:6670/v1
+      api_key: local-offline-key
+      provider: generic
+      interface_type: openai
+      supports_vision: true
+      context_window: 16384
+      max_output_tokens: 4096
+
+  - id: builtin-bge-m3-embedding
+    name: BAAI/bge-m3
+    type: Embedding
+    source: remote
+    is_default: true
+    description: "BAAI/bge-m3 (Offline Multilingual Embedding 1024 chiều tối ưu tiếng Việt)"
+    parameters:
+      base_url: http://infinity-models:6671/v1
+      api_key: local-offline-key
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 0
+
+  - id: builtin-bge-reranker-v2-m3
+    name: BAAI/bge-reranker-v2-m3
+    type: Rerank
+    source: remote
+    is_default: true
+    description: "BAAI/bge-reranker-v2-m3 (Offline Cross-Encoder Reranker chấm điểm lại ngữ cảnh tiếng Việt)"
+    parameters:
+      base_url: http://infinity-models:6671/v1
+      api_key: local-offline-key
+      provider: generic

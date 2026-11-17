@@ -83,6 +83,10 @@ func TestLanguageLocaleName(t *testing.T) {
 		{"Portuguese pt-BR", "pt-BR", "Portuguese"},
 		{"Portuguese pt", "pt", "Portuguese"},
 
+		// Vietnamese
+		{"Vietnamese vi-VN", "vi-VN", "Vietnamese"},
+		{"Vietnamese vi", "vi", "Vietnamese"},
+
 		// Unknown/fallback
 		{"Unknown locale", "unknown", "unknown"},
 		{"Empty locale", "", ""},

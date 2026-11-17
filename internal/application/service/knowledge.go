@@ -840,6 +840,29 @@ func (s *knowledgeService) GetKnowledgeFile(ctx context.Context, id string) (io.
 	return file, knowledge.FileName, nil
 }
 
+// ValidateCustomMetadataJSON validates that custom_metadata is a flat JSON object
+// with at most 20 scalar fields.
+func ValidateCustomMetadataJSON(raw types.JSON) error {
+	var custom map[string]interface{}
+	if err := json.Unmarshal(raw, &custom); err != nil {
+		return fmt.Errorf("custom_metadata must be a JSON object: %w", err)
+	}
+	if len(custom) > 20 {
+		return fmt.Errorf("custom_metadata supports at most 20 fields")
+	}
+	for key, value := range custom {
+		if len(strings.TrimSpace(key)) == 0 || len(key) > 64 || len(fmt.Sprint(value)) > 1000 {
+			return fmt.Errorf("invalid custom_metadata field %q", key)
+		}
+		switch value.(type) {
+		case string, float64, bool, nil:
+		default:
+			return fmt.Errorf("custom_metadata field %q must be a string, number, boolean, or null", key)
+		}
+	}
+	return nil
+}
+
 func (s *knowledgeService) UpdateKnowledge(ctx context.Context, knowledge *types.Knowledge) error {
 	if knowledge == nil {
 		return werrors.NewBadRequestError("knowledge cannot be nil")
@@ -865,23 +888,11 @@ func (s *knowledgeService) UpdateKnowledge(ctx context.Context, knowledge *types
 	}
 	metadataChanged := false
 	if knowledge.CustomMetadata != nil {
+		if err := ValidateCustomMetadataJSON(knowledge.CustomMetadata); err != nil {
+			return err
+		}
 		var custom map[string]interface{}
-		if err := json.Unmarshal(knowledge.CustomMetadata, &custom); err != nil {
-			return fmt.Errorf("custom_metadata must be a JSON object: %w", err)
-		}
-		if len(custom) > 20 {
-			return fmt.Errorf("custom_metadata supports at most 20 fields")
-		}
-		for key, value := range custom {
-			if len(strings.TrimSpace(key)) == 0 || len(key) > 64 || len(fmt.Sprint(value)) > 1000 {
-				return fmt.Errorf("invalid custom_metadata field %q", key)
-			}
-			switch value.(type) {
-			case string, float64, bool, nil:
-			default:
-				return fmt.Errorf("custom_metadata field %q must be a string, number, boolean, or null", key)
-			}
-		}
+		_ = json.Unmarshal(knowledge.CustomMetadata, &custom)
 		existing := make(map[string]interface{})
 		if len(record.CustomMetadata) > 0 {
 			_ = json.Unmarshal(record.CustomMetadata, &existing)

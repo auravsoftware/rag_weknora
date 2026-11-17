@@ -1,0 +1,288 @@
+# ==============================================================================
+# docker-compose.offline-24gb.yml
+# Cấu hình triển khai RAG Tiếng Việt 100% Offline trên 1x GPU 24GB VRAM
+# (NVIDIA RTX PRO 4000 Blackwell 24GB / RTX 3090 / RTX 4090)
+#
+# Kiến trúc phân bổ 24GB VRAM:
+#   1. vllm-qwen25-vl (~15.0 GB VRAM, gpu-memory-utilization=0.62):
+#      Chạy Qwen/Qwen2.5-VL-7B-Instruct-AWQ dùng chung cho cả:
+#        - LLM Hỏi đáp RAG có trích dẫn nguồn & kiểm tra hiệu lực văn bản (KnowledgeQA)
+#        - VLM OCR nhận diện PDF Scan, bảng biểu, chữ ký/con dấu (VLLM)
+#   2. infinity-models (~2.5 GB VRAM):
+#      Chạy đồng thời 2 model trên cùng 1 server Infinity:
+#        - BAAI/bge-m3 (Embedding đa ngôn ngữ 1024 chiều tối ưu tiếng Việt)
+#        - BAAI/bge-reranker-v2-m3 (Cross-Encoder Reranker chấm điểm lại ngữ cảnh)
+#   3. ParadeDB PostgreSQL 17 (0 GB VRAM - chạy CPU/RAM):
+#      Kết hợp pgvector (HNSW Dense Vector) + pg_search (BM25 Full-Text Search)
+#   4. DocReader (0 GB VRAM - chạy CPU/RAM):
+#      Bóc tách PDF Vector, Word (.docx/.doc) chuẩn hóa NFC tiếng Việt & render trang PDF Scan
+# ==============================================================================
+
+services:
+  frontend:
+    image: wechatopenai/weknora-ui:${WEKNORA_VERSION:-latest}
+    build:
+      context: ./frontend
+      args:
+        VITE_FRONTEND_COMMIT: ${VITE_FRONTEND_COMMIT:-offline-vi}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        NODE_MAX_OLD_SPACE_SIZE: ${NODE_MAX_OLD_SPACE_SIZE:-4096}
+    container_name: WeKnora-frontend
+    ports:
+      - "${FRONTEND_PORT:-6666}:80"
+    environment:
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
+      - DEFAULT_LOCALE=${DEFAULT_LOCALE:-vi-VN}
+      - APP_HOST=${APP_HOST:-app}
+      - APP_PORT=${APP_BACKEND_PORT:-8080}
+      - APP_SCHEME=${APP_SCHEME:-http}
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - WeKnora-network
+    restart: unless-stopped
+
+  app:
+    image: wechatopenai/weknora-app:${WEKNORA_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+      args:
+        - APK_MIRROR_ARG=${APK_MIRROR_ARG:-}
+        - WITH_ANYDOC=${WITH_ANYDOC:-1}
+    container_name: WeKnora-app
+    ports:
+      - "${APP_PORT:-6667}:8080"
+    volumes:
+      - data-files:/data/files
+      - docreader-tmp:/tmp/docreader:ro
+      - ./config/config.yaml:/app/config/config.yaml:ro
+      - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+      - ./config/prompt_templates:/app/config/prompt_templates:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    env_file:
+      - .env
+    environment:
+      - GIN_MODE=${GIN_MODE:-release}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
+      - WEKNORA_LANGUAGE=${WEKNORA_LANGUAGE:-vi-VN}
+      - AUTO_MIGRATE=${AUTO_MIGRATE:-true}
+      - AUTO_RECOVER_DIRTY=${AUTO_RECOVER_DIRTY:-true}
+      - DB_DRIVER=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres123!@#}
+      - DB_NAME=${DB_NAME:-WeKnora}
+      - RETRIEVE_DRIVER=postgres
+      - STORAGE_TYPE=local
+      - LOCAL_STORAGE_BASE_DIR=/data/files
+      - STREAM_MANAGER_TYPE=redis
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123!@#}
+      - DOCREADER_ADDR=docreader:50051
+      - DOCREADER_TRANSPORT=grpc
+      - OLLAMA_OPTIONAL=true
+      - WEKNORA_SANDBOX_DOCKER_ENABLED=false
+      - NEO4J_ENABLE=false
+      - VLM_HTTP_TIMEOUT_SECONDS=${VLM_HTTP_TIMEOUT_SECONDS:-300}
+      - VLM_MAX_TOKENS=${VLM_MAX_TOKENS:-4096}
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
+      - SSRF_WHITELIST_EXTRA=vllm-qwen25-vl,infinity-models
+      - CONCURRENCY_POOL_SIZE=${CONCURRENCY_POOL_SIZE:-4}
+      - WEKNORA_ASYNQ_CORE_CONCURRENCY=${WEKNORA_ASYNQ_CORE_CONCURRENCY:-4}
+      - WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY:-4}
+      - WEKNORA_MODEL_MAX_CONCURRENCY=${WEKNORA_MODEL_MAX_CONCURRENCY:-8}
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      docreader:
+        condition: service_healthy
+    networks:
+      - WeKnora-network
+    restart: unless-stopped
+
+  docreader:
+    image: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.docreader
+    container_name: WeKnora-docreader
+    expose:
+      - "50051"
+    ports:
+      - "${DOCREADER_PORT:-6672}:50051"
+    volumes:
+      - docreader-tmp:/tmp/docreader
+    environment:
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
+      - DOCREADER_IMAGE_OUTPUT_DIR=/tmp/docreader
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
+      - DOCREADER_GRPC_MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
+      - DOCREADER_GRPC_MAX_WORKERS=${DOCREADER_GRPC_MAX_WORKERS:-4}
+      - DOCREADER_PDF_RENDER_DPI=${DOCREADER_PDF_RENDER_DPI:-200}
+      - DOCREADER_PDF_JPEG_QUALITY=${DOCREADER_PDF_JPEG_QUALITY:-85}
+      - DOCREADER_PDF_RENDER_MAX_EDGE=${DOCREADER_PDF_RENDER_MAX_EDGE:-2000}
+      - DOCREADER_PDF_SANITIZE_TEXT=true
+      - DOCREADER_PDF_STRIP_CHART_DEBRIS=true
+      - DOCREADER_PDF_RENDER_VECTOR_FIGURES=true
+      - DOCREADER_PDF_LAYOUT_ORDERING=true
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - WeKnora-network
+    restart: unless-stopped
+
+  postgres:
+    image: paradedb/paradedb:v0.25.11-pg17
+    container_name: WeKnora-postgres
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres123!@#}
+      - POSTGRES_DB=${DB_NAME:-WeKnora}
+    ports:
+      - "${DB_PORT:-6668}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - WeKnora-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-WeKnora}"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 1m
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: WeKnora-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123!@#}
+    ports:
+      - "${REDIS_PORT:-6669}:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+    networks:
+      - WeKnora-network
+
+  # ============================================================================
+  # 1. Unified OCR + RAG LLM Server (vLLM): Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+  #    Chiếm ~15.0 GB VRAM (gpu-memory-utilization = 0.62 trên card 24GB)
+  # ============================================================================
+  vllm-qwen25-vl:
+    image: vllm/vllm-openai:latest
+    container_name: WeKnora-vllm-qwen25-vl
+    ipc: host
+    ports:
+      - "${VLLM_PORT:-6670}:6670"
+    volumes:
+      - ${HF_CACHE_DIR:-./models_cache/huggingface}:/root/.cache/huggingface
+    environment:
+      - HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0}
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+    command:
+      - "--model"
+      - "${VLLM_MODEL_NAME:-Qwen/Qwen2.5-VL-7B-Instruct-AWQ}"
+      - "--served-model-name"
+      - "Qwen/Qwen2.5-VL-7B-Instruct-AWQ"
+      - "--api-key"
+      - "local-offline-key"
+      - "--gpu-memory-utilization"
+      - "${VLLM_GPU_MEMORY_UTILIZATION:-0.62}"
+      - "--max-model-len"
+      - "${VLLM_MAX_MODEL_LEN:-16384}"
+      - "--max-num-seqs"
+      - "${VLLM_MAX_NUM_SEQS:-8}"
+      - "--limit-mm-per-prompt"
+      - "image=4"
+      - "--dtype"
+      - "half"
+      - "--trust-remote-code"
+      - "--port"
+      - "6670"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6670/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    networks:
+      - WeKnora-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # 2. Embedding + Reranker Server (Infinity): BAAI/bge-m3 + bge-reranker-v2-m3
+  #    Chiếm ~2.5 GB VRAM (FP16) trên cùng GPU 24GB
+  # ============================================================================
+  infinity-models:
+    image: michaelf34/infinity:latest
+    container_name: WeKnora-infinity-models
+    ports:
+      - "${INFINITY_PORT:-6671}:6671"
+    volumes:
+      - ${HF_CACHE_DIR:-./models_cache/huggingface}:/app/.cache/huggingface
+    environment:
+      - HF_HOME=/app/.cache/huggingface
+      - HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0}
+    command:
+      - "v2"
+      - "--model-id"
+      - "${EMBEDDING_MODEL_NAME:-BAAI/bge-m3}"
+      - "--model-id"
+      - "${RERANK_MODEL_NAME:-BAAI/bge-reranker-v2-m3}"
+      - "--port"
+      - "6671"
+      - "--batch-size"
+      - "32"
+      - "--dtype"
+      - "float16"
+      - "--api-key"
+      - "local-offline-key"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6671/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - WeKnora-network
+    restart: unless-stopped
+
+volumes:
+  data-files:
+  postgres-data:
+  redis-data:
+  docreader-tmp:
+
+networks:
+  WeKnora-network:
+    driver: bridge

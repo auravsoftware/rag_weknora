@@ -112,7 +112,8 @@ def _paragraph_text(p_element: Any) -> str:
                 walk(child)
 
     walk(p_element)
-    return "".join(parts)
+    import unicodedata
+    return unicodedata.normalize("NFC", "".join(parts))
 
 
 def _block_children(container: Any):

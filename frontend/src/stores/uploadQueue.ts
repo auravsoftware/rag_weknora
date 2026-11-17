@@ -24,12 +24,15 @@ export interface UploadBatch {
   targetFolder: string
   tagIds?: string[]
   processConfig?: KnowledgeProcessOverrides
+  customMetadata?: Record<string, string | number | boolean | null>
 }
 
 export interface UploadPayload {
   file: File
   /** Path-qualified name the backend splits into folder + file name. */
   fileName?: string
+  title?: string
+  customMetadata?: Record<string, string | number | boolean | null>
 }
 
 export interface KnowledgeStatusRow {

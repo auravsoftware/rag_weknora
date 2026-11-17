@@ -2716,7 +2716,50 @@ const ruEmbedPublish = {
   },
 } as const
 
-export const SUPPORTED_LOCALES = ['zh-CN', 'zh-TW', 'en-US', 'ko-KR', 'ja-JP', 'ru-RU'] as const
+const viEmbedPublish = {
+  chat: {
+    title: 'Tra cứu & Hỏi đáp',
+    newChat: 'Phiên hỏi đáp mới',
+    inputPlaceholder: 'Nhập câu hỏi của bạn...',
+    send: 'Gửi',
+    thinking: 'Đang suy luận...',
+    regenerate: 'Tạo lại',
+    copy: 'Sao chép',
+    delete: 'Xóa',
+    reference: 'Trích dẫn',
+    noMessages: 'Chưa có tin nhắn',
+    waitingForAnswer: 'Đang chờ câu trả lời...',
+    cannotAnswer: 'Xin lỗi, tôi không thể trả lời câu hỏi này.',
+    summarizingAnswer: 'Đang tổng hợp câu trả lời...',
+    loading: 'Đang tải...',
+    conversationTime: {
+      today: 'Hôm nay {time}',
+      yesterday: 'Hôm qua {time}',
+      thisYear: '{day}/{month} {time}',
+      otherYear: '{day}/{month}/{year} {time}',
+    },
+    referencesDrawerTitle: 'Nguồn tham khảo',
+    referencesDrawerTitleWeb: 'Nguồn trang web',
+    referencesDrawerTitleDocs: 'Tài liệu nguồn',
+    referencesDrawerTitleTools: 'Kết quả công cụ',
+    referencesDrawerTitleMixed: 'Nguồn tham khảo',
+    referencesDrawerWebSection: 'Trang web',
+    referencesDrawerDocsSection: 'Tài liệu kho tri thức',
+    referencesDrawerToolsSection: 'Công cụ',
+    referencesDrawerEmpty: 'Không có nguồn tham khảo',
+  },
+  common: {
+    loading: 'Đang tải...',
+    confirm: 'Xác nhận',
+    cancel: 'Hủy',
+    close: 'Đóng',
+    copy: 'Sao chép',
+    copied: 'Đã sao chép',
+    finish: 'Hoàn tất',
+  },
+} as const
+
+export const SUPPORTED_LOCALES = ['vi-VN', 'zh-CN', 'zh-TW', 'en-US', 'ko-KR', 'ja-JP', 'ru-RU'] as const
 export type EmbedLocale = (typeof SUPPORTED_LOCALES)[number]
 
 /** Isolated from the main app `locale` key so embed preview never hijacks admin UI language. */
@@ -2725,6 +2768,7 @@ export const EMBED_LOCALE_STORAGE_KEY = 'weknora-embed-locale'
 /** Map host-provided locale strings to a supported embed locale tag. */
 export function normalizeEmbedLocale(raw: string): EmbedLocale {
   const s = raw.trim().toLowerCase()
+  if (s.startsWith('vi')) return 'vi-VN'
   if (s.startsWith('en')) return 'en-US'
   if (s.startsWith('ko')) return 'ko-KR'
   if (s.startsWith('ja')) return 'ja-JP'
@@ -2773,6 +2817,7 @@ function resolveInitialEmbedLocale(): EmbedLocale {
 const locale = resolveInitialEmbedLocale()
 
 export const EMBED_MESSAGES = {
+  'vi-VN': deepMerge(messages['en-US'], viEmbedPublish),
   'zh-CN': messages['zh-CN'],
   'zh-TW': messages['zh-TW'],
   'en-US': messages['en-US'],

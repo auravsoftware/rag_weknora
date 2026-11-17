@@ -332,11 +332,20 @@ const syncSettingsRoute = (sectionKey: string) => {
   })
 }
 
+const STREAMLINED_HIDDEN_SECTIONS = new Set([
+  'weknoracloud',
+  'websearch',
+  'sandbox',
+  'envvars',
+  'credentialvault',
+  'mymemory',
+  'memory',
+  'assistant',
+])
+
 const isSectionSupported = (key: string): boolean => {
-  if (isIntegrationSection(key)) {
-    return deploymentCapabilities.isSupported(
-      INTEGRATION_TAB_CAPABILITY[integrationTabFromSection(key)],
-    )
+  if (STREAMLINED_HIDDEN_SECTIONS.has(key) || isIntegrationSection(key)) {
+    return false
   }
   if (key === 'skills' || key === 'envvars') {
     return skillSettingsSupported(deploymentCapabilities.capabilities)

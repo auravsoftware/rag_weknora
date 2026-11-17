@@ -57,9 +57,13 @@ export default function (knowledgeBaseId?: string) {
 
         const { data, total: totalResult } = result;
     const cardList_ = data.map((item: any) => {
+      const customMeta = item.custom_metadata || {}
+      const customTitle = (typeof customMeta.document_title === 'string' && customMeta.document_title.trim())
+        || (item.title && item.title !== item.file_name ? item.title : '')
       const rawName = item.file_name || item.title || item.source || t('knowledgeBase.untitledDocument')
       const dotIndex = rawName.lastIndexOf('.')
-      const displayName = dotIndex > 0 ? rawName.substring(0, dotIndex) : rawName
+      const defaultDisplayName = dotIndex > 0 ? rawName.substring(0, dotIndex) : rawName
+      const displayName = customTitle || defaultDisplayName
       const fileTypeSource = item.file_type || (item.type === 'manual' ? 'MANUAL' : '')
       return {
         ...item,
@@ -67,6 +71,7 @@ export default function (knowledgeBaseId?: string) {
         display_name: displayName,
         file_name: displayName,
         folder_path: item.folder_path || '',
+        custom_metadata: customMeta,
         updated_at: formatStringDate(new Date(item.updated_at)),
         isMore: false,
         file_type: fileTypeSource ? String(fileTypeSource).toLocaleUpperCase() : '',
@@ -116,8 +121,11 @@ export default function (knowledgeBaseId?: string) {
         if (requestGeneration !== detailRequestGeneration || activeKnowledgeId !== item.id) return;
         if (result.success && result.data) {
           const { data } = result;
+          const customMeta = data.custom_metadata || {};
+          const customTitle = (typeof customMeta.document_title === 'string' && customMeta.document_title.trim())
+            || (data.title && data.title !== data.file_name ? data.title : '');
           Object.assign(details, {
-            title: data.file_name || data.title || data.source || t('knowledgeBase.untitledDocument'),
+            title: customTitle || data.file_name || data.title || data.source || t('knowledgeBase.untitledDocument'),
             time: formatStringDate(new Date(data.updated_at)),
             id: data.id,
             type: data.type || 'file',
@@ -128,7 +136,7 @@ export default function (knowledgeBaseId?: string) {
             summary_status: data.summary_status || '',
             parse_status: data.parse_status || '',
             error_message: data.error_message || '',
-			custom_metadata: data.custom_metadata || {},
+			custom_metadata: customMeta,
             tags: data.tags?.length ? data.tags : (item?.tags || []),
           });
         }

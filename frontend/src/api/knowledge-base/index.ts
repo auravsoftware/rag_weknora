@@ -498,6 +498,8 @@ export function uploadKnowledgeFile(
     file: File
     tag_ids?: string[]
     fileName?: string
+    title?: string
+    custom_metadata?: Record<string, any> | string
     process_config?: KnowledgeProcessOverrides | string
     [key: string]: any
   } = { file: new File([], '') },
@@ -510,7 +512,7 @@ export function uploadKnowledgeFile(
     if (value === undefined) return;
     if (key === 'tag_ids' && Array.isArray(value)) {
       formData.append(key, value.join(','));
-    } else if (key === 'process_config' && value && typeof value !== 'string') {
+    } else if ((key === 'process_config' || key === 'custom_metadata') && value && typeof value !== 'string') {
       formData.append(key, JSON.stringify(value));
     } else {
       formData.append(key, value);

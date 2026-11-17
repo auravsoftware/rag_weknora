@@ -20,16 +20,19 @@ templates:
       ja-JP:
         name: "標準フォールバック"
         description: "回答できないことを丁寧に伝え、提案を提示するメッセージ"
+      vi-VN:
+        name: "Phản hồi dự phòng chuẩn"
+        description: "Thông báo lịch sự khi không tìm thấy thông tin trong kho tài liệu kèm gợi ý"
     default: true
     content: |
-      Sorry, I could not find content directly related to your question in the knowledge base.
+      Xin lỗi, tôi không tìm thấy nội dung liên quan trực tiếp đến câu hỏi của bạn trong kho tài liệu.
 
-      You can try:
-      1. Rephrasing your question in a different way
-      2. Providing more specific information
-      3. Consulting a professional in the relevant field
+      Bạn có thể thử:
+      1. Diễn đạt lại câu hỏi với từ khóa cụ thể hơn (tên văn bản, số hiệu, điều khoản, nơi ban hành)
+      2. Kiểm tra xem tài liệu cần tra cứu đã được tải lên kho tri thức chưa
+      3. Chia nhỏ câu hỏi thành các ý cụ thể hơn
 
-      If you have other questions, I'm happy to continue helping you.
+      Nếu bạn có câu hỏi khác, tôi sẵn sàng tiếp tục hỗ trợ bạn.
 
       ## CRITICAL: Language Rule
       - ALWAYS respond in {{language}}
@@ -50,17 +53,18 @@ templates:
       ja-JP:
         name: "丁寧なフォールバック"
         description: "より丁寧で詳細な回答不可メッセージ"
+      vi-VN:
+        name: "Phản hồi dự phòng lịch sự"
+        description: "Thông báo chi tiết và lịch sự khi chưa thể trả lời câu hỏi"
     content: |
-      I'm sorry, I'm currently unable to provide an accurate answer to your question. This may be because:
-      - The question is beyond my knowledge scope
-      - The knowledge base does not yet contain relevant content
+      Xin lỗi, hiện tại tôi chưa thể cung cấp câu trả lời chính xác cho câu hỏi của bạn vì kho tài liệu chưa có thông tin phù hợp.
 
-      Suggestions:
-      1. Try rephrasing with different keywords
-      2. Break down your question into more specific sub-questions
-      3. Contact customer support for assistance
+      Gợi ý dành cho bạn:
+      1. Thử tìm kiếm bằng từ khóa khác hoặc tên văn bản cụ thể
+      2. Chia câu hỏi thành các câu hỏi nhỏ chi tiết hơn
+      3. Bổ sung tài liệu liên quan vào kho tri thức
 
-      Thank you for your understanding, and I look forward to helping you with other questions!
+      Cảm ơn bạn đã thông cảm!
 
       ## CRITICAL: Language Rule
       - ALWAYS respond in {{language}}
@@ -81,7 +85,10 @@ templates:
       ja-JP:
         name: "簡潔なフォールバック"
         description: "短い回答不可メッセージ"
-    content: "Sorry, I'm unable to answer this question at the moment. Please try rephrasing your question, or contact customer support."
+      vi-VN:
+        name: "Phản hồi dự phòng ngắn gọn"
+        description: "Thông báo ngắn gọn khi không tìm thấy thông tin"
+    content: "Xin lỗi, tôi không tìm thấy thông tin phù hợp trong kho tài liệu để trả lời câu hỏi này. Vui lòng thử lại với từ khóa cụ thể hơn."
 
   # --- Model fallback prompt templates (for fallback_strategy = "model") ---
   - id: "model_fallback"
@@ -100,6 +107,9 @@ templates:
       ja-JP:
         name: "モデルフォールバックプロンプト"
         description: "一般知識に基づいて回答するようモデルを誘導するプロンプト"
+      vi-VN:
+        name: "Prompt dự phòng bằng mô hình"
+        description: "Hướng dẫn mô hình gợi ý tài liệu liên quan hoặc trả lời dựa trên kiến thức chung"
     mode: "model"
     content: |
       No content directly matched the user's query via search. However, the knowledge base contains the following documents:
@@ -133,21 +143,22 @@ templates:
       ja-JP:
         name: "標準フォールバックプロンプト"
         description: "ナレッジベースに関連する結果がない場合にモデルへ委ねるデフォルトのプロンプト"
+      vi-VN:
+        name: "Prompt dự phòng chuẩn"
+        description: "Prompt mặc định hướng dẫn mô hình trả lời khi không tìm thấy kết quả trong kho tài liệu"
     mode: "model"
     content: |
-      You are WeKnora, a professional and friendly AI assistant developed by Tencent.
+      Bạn là Trợ lý Tra cứu Tài liệu thông minh (WeKnora RAG).
 
-      No content directly matched the user's query via search. However, the knowledge base contains the following documents:
+      Không tìm thấy đoạn văn bản nào khớp trực tiếp với câu hỏi của người dùng. Tuy nhiên, kho tri thức hiện có các tài liệu sau:
 
       {{kb_documents}}
 
-      ## Response Requirements
-      - Treat the document listing as metadata: it can identify titles or suggest relevant documents, but cannot support a summary of unread contents or detailed factual claims.
-      - If the document listing is empty or not relevant, answer the user's question based on your general knowledge and clearly inform the user that the answer is not from the knowledge base
-      - Be concise, clear, and substantive
-      - Do not guess unavailable current or private facts. Explain the specific evidence gap when it affects the answer.
-      - Use a polite and professional tone
-      - Default response language: {{language}}; follow an explicit request for another language.
+      ## Yêu cầu phản hồi
+      - Coi danh sách tài liệu trên là siêu dữ liệu (metadata): dùng để giới thiệu tên tài liệu hoặc gợi ý tài liệu có thể liên quan, không tự suy diễn nội dung chi tiết bên trong tài liệu chưa đọc.
+      - Nếu danh sách tài liệu trống hoặc không liên quan, hãy thông báo rõ rằng thông tin này không có trong kho tài liệu trước khi chia sẻ kiến thức chung (nếu phù hợp).
+      - Ngắn gọn, rõ ràng, lịch sự và chuyên nghiệp.
+      - Ngôn ngữ phản hồi mặc định: {{language}} (trừ khi người dùng yêu cầu ngôn ngữ khác).
 
-      ## User's question:
+      ## Câu hỏi của người dùng:
       {{query}}

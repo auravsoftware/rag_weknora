@@ -160,6 +160,76 @@
               <div class="content-wrapper upload-confirm-content">
                   <div v-show="activeSection === 'tags'" class="section">
                     <div class="section-content">
+                      <div v-if="mode === 'file'" class="section-header">
+                        <h2 class="section-title">{{ t('uploadConfirm.metadataSectionTitle') }}</h2>
+                        <p class="section-desc">{{ t('uploadConfirm.metadataSectionDesc') }}</p>
+                      </div>
+                      <div v-if="mode === 'file'" class="settings-group" style="margin-bottom: 20px;">
+                        <div class="setting-row setting-row-vertical">
+                          <div class="setting-info">
+                            <label>{{ t('uploadConfirm.docTitleLabel') }}</label>
+                          </div>
+                          <div class="setting-control setting-control-full">
+                            <t-input
+                              v-model="docMetadata.title"
+                              clearable
+                              :placeholder="t('uploadConfirm.docTitlePlaceholder')"
+                            />
+                          </div>
+                        </div>
+                        <div class="setting-row setting-row-vertical">
+                          <div class="setting-info">
+                            <label>{{ t('uploadConfirm.issuingAuthorityLabel') }}</label>
+                          </div>
+                          <div class="setting-control setting-control-full">
+                            <t-input
+                              v-model="docMetadata.issuingAuthority"
+                              clearable
+                              :placeholder="t('uploadConfirm.issuingAuthorityPlaceholder')"
+                            />
+                          </div>
+                        </div>
+                        <div class="setting-row">
+                          <div class="setting-info">
+                            <label>{{ t('uploadConfirm.issueDateLabel') }}</label>
+                          </div>
+                          <div class="setting-control">
+                            <t-input
+                              v-model="docMetadata.issueDate"
+                              type="date"
+                              clearable
+                              :style="{ width: '220px' }"
+                            />
+                          </div>
+                        </div>
+                        <div class="setting-row">
+                          <div class="setting-info">
+                            <label>{{ t('uploadConfirm.effectiveDateLabel') }}</label>
+                          </div>
+                          <div class="setting-control">
+                            <t-input
+                              v-model="docMetadata.effectiveDate"
+                              type="date"
+                              clearable
+                              :style="{ width: '220px' }"
+                            />
+                          </div>
+                        </div>
+                        <div class="setting-row">
+                          <div class="setting-info">
+                            <label>{{ t('uploadConfirm.expirationDateLabel') }}</label>
+                          </div>
+                          <div class="setting-control">
+                            <t-input
+                              v-model="docMetadata.expirationDate"
+                              type="date"
+                              clearable
+                              :style="{ width: '220px' }"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <div class="section-header">
                         <h2 class="section-title">{{ t('uploadConfirm.tabTags') }}</h2>
                         <p class="section-desc">{{ t('uploadConfirm.tagsDescription') }}</p>
@@ -829,6 +899,13 @@ const tagsLoadFailed = ref(false)
 const chunkingMoreOpen = ref(false)
 const activeSection = ref<ConfigSectionKey>('tags')
 const uiState = ref<UploadUIState>(createDefaultUIState())
+const docMetadata = ref({
+  title: '',
+  issuingAuthority: '',
+  issueDate: '',
+  effectiveDate: '',
+  expirationDate: '',
+})
 // Destination folder for this batch. Pre-filled from the sidebar tree, but
 // editable here so browsing a folder never silently decides where files land.
 const localTargetFolder = ref('')
@@ -876,6 +953,11 @@ function fileRelativeDir(file: File): string {
 function fileDisplayTitle(file: File): string {
   const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
   return relativePath || file.name
+}
+
+function stripFileExt(name: string): string {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
 }
 
 function onDestinationCreated(path: string) {
@@ -999,9 +1081,10 @@ const separatorOptions = computed(() => [
 ])
 
 const languageOptions = computed(() => [
-  { label: t('knowledgeEditor.chunking.languageOptions.de'), value: 'de' },
+  { label: t('knowledgeEditor.chunking.languageOptions.vi'), value: 'vi' },
   { label: t('knowledgeEditor.chunking.languageOptions.en'), value: 'en' },
   { label: t('knowledgeEditor.chunking.languageOptions.zh'), value: 'zh' },
+  { label: t('knowledgeEditor.chunking.languageOptions.de'), value: 'de' },
 ])
 
 const tagOptions = computed(() => availableTags.value.map(tag => ({
@@ -1095,17 +1178,8 @@ const navItems = computed(() => {
     t('knowledgeEditor.sidebar.multimodal'),
     issueSectionKeys.value.has('multimodal'),
   )
-  push(
-    'asr',
-    'sound',
-    t('knowledgeEditor.sidebar.asr'),
-    issueSectionKeys.value.has('asr'),
-  )
   push('summary', 'file', t('uploadConfirm.documentSummary'))
   push('question', 'chat', t('knowledgeEditor.advanced.questionGeneration.label'))
-  if (isGraphSectionAvailable.value) {
-    push('graph', 'chart-bubble', t('knowledgeEditor.sidebar.graph'))
-  }
   return items
 })
 
@@ -1523,6 +1597,13 @@ watch(
     localTargetFolder.value = props.mode === 'file' ? (props.targetFolder || '') : ''
     pendingFolderPaths.value = []
     destinationPickerVisible.value = false
+    docMetadata.value = {
+      title: localFiles.value.length === 1 ? stripFileExt(localFiles.value[0].name) : '',
+      issuingAuthority: '',
+      issueDate: '',
+      effectiveDate: '',
+      expirationDate: '',
+    }
     initFromKbInfo(props.kbInfo)
     if (props.mode === 'reparse') {
       applyOverridesToState(props.reparsePreview?.processOverrides)
@@ -1643,6 +1724,33 @@ const handleCancel = () => {
 // 面板报上来的「选中的方案一个动作都没开」；多模态开启时阻止确认。
 const imagePipelineInvalid = ref(false)
 
+function buildCustomMetadata(): Record<string, unknown> | undefined {
+  const m = docMetadata.value
+  const result: Record<string, unknown> = {}
+  const titleVal = m.title.trim()
+  const authorityVal = m.issuingAuthority.trim()
+  const issueVal = m.issueDate.trim()
+  const effectiveVal = m.effectiveDate.trim()
+  const expirationVal = m.expirationDate.trim()
+
+  if (titleVal && localFiles.value.length === 1) {
+    result.document_title = titleVal
+  }
+  if (authorityVal) {
+    result.issuing_authority = authorityVal
+  }
+  if (issueVal) {
+    result.issue_date = issueVal
+  }
+  if (effectiveVal) {
+    result.effective_date = effectiveVal
+  }
+  if (expirationVal) {
+    result.expiration_date = expirationVal
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
 const handleConfirm = () => {
   if (props.mode === 'file' && batchItemCount.value === 0) {
     MessagePlugin.warning(t('uploadConfirm.noItems'))
@@ -1665,6 +1773,10 @@ const handleConfirm = () => {
   } else if (props.mode === 'reparse' && props.reparsePreview) {
     emit('confirm', { processConfig, mode: 'reparse', reparse: { ...props.reparsePreview } })
   } else {
+    const customMetadata = buildCustomMetadata()
+    const customTitle = localFiles.value.length === 1 && docMetadata.value.title.trim()
+      ? docMetadata.value.title.trim()
+      : undefined
     emit('confirm', {
       processConfig,
       mode: 'file',
@@ -1672,6 +1784,8 @@ const handleConfirm = () => {
       files: [...localFiles.value],
       urls: [...localUrls.value],
       targetFolder: localTargetFolder.value,
+      title: customTitle,
+      customMetadata,
     })
   }
   emit('update:visible', false)

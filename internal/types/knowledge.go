@@ -256,6 +256,14 @@ const (
 	StallStateStalled = "stalled"
 )
 
+var standardMetadataLabels = map[string]string{
+	"document_title":    "Tiêu đề văn bản",
+	"issuing_authority": "Nơi ban hành",
+	"issue_date":        "Ngày ban hành",
+	"effective_date":    "Ngày hiệu lực",
+	"expiration_date":   "Ngày hết hiệu lực",
+}
+
 // CustomMetadataText returns stable human-readable metadata for summaries and
 // document-scoped model context. Internal ingestion metadata is intentionally
 // excluded.
@@ -272,17 +280,47 @@ func (k *Knowledge) CustomMetadataText() string {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	lines := make([]string, 0, len(keys))
+	lines := make([]string, 0, len(keys)+1)
 	for _, key := range keys {
 		if values[key] == nil {
 			continue
 		}
+		trimmedKey := strings.TrimSpace(key)
 		value := strings.TrimSpace(fmt.Sprint(values[key]))
-		if strings.TrimSpace(key) != "" && value != "" {
-			lines = append(lines, fmt.Sprintf("%s: %s", strings.TrimSpace(key), value))
+		if trimmedKey != "" && value != "" {
+			if label, ok := standardMetadataLabels[trimmedKey]; ok {
+				lines = append(lines, fmt.Sprintf("%s (%s): %s", label, trimmedKey, value))
+			} else {
+				lines = append(lines, fmt.Sprintf("%s: %s", trimmedKey, value))
+			}
 		}
 	}
+	if status := computeDocumentValidityStatus(values, time.Now()); status != "" {
+		lines = append(lines, fmt.Sprintf("Trạng thái hiệu lực: %s", status))
+	}
 	return strings.Join(lines, "\n")
+}
+
+func computeDocumentValidityStatus(values map[string]interface{}, now time.Time) string {
+	today := now.Format("2006-01-02")
+	effStr := ""
+	if v, ok := values["effective_date"]; ok && v != nil {
+		effStr = strings.TrimSpace(fmt.Sprint(v))
+	}
+	expStr := ""
+	if v, ok := values["expiration_date"]; ok && v != nil {
+		expStr = strings.TrimSpace(fmt.Sprint(v))
+	}
+	if effStr == "" && expStr == "" {
+		return ""
+	}
+	if expStr != "" && len(expStr) >= 10 && expStr[:10] < today {
+		return "Hết hiệu lực"
+	}
+	if effStr != "" && len(effStr) >= 10 && effStr[:10] > today {
+		return "Chưa có hiệu lực"
+	}
+	return "Đang có hiệu lực"
 }
 
 // GetMetadata returns the metadata as a map[string]string.

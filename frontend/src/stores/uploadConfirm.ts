@@ -33,6 +33,10 @@ export interface UploadConfirmResult {
    * the dialog.
    */
   targetFolder?: string
+  /** Optional custom document title (used for single-file upload). */
+  title?: string
+  /** Standard & custom document metadata (issuing_authority, issue_date, effective_date, expiration_date). */
+  customMetadata?: Record<string, string | number | boolean | null>
 }
 
 export interface OpenUploadConfirmOptions {

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import unicodedata
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -53,6 +54,8 @@ class BaseParser(ABC):
             len(content),
         )
         document = self.parse_into_text(content)
+        if document and document.content:
+            document.content = unicodedata.normalize("NFC", document.content)
         logger.info(
             "Extracted %d characters from %s",
             len(document.content),

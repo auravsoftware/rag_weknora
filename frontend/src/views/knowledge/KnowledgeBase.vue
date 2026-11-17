@@ -74,6 +74,8 @@ import {
   folderDocumentCounts,
   folderPathExists as folderExistsInTree,
   isFilteringDocuments,
+  mergeCustomFoldersIntoTree,
+  normalizeFolderPath,
   ROOT_FOLDER_PATH,
 } from './folderTree';
 import {
@@ -97,6 +99,7 @@ const kbLoading = ref(false);
 const docListLoading = ref(true);
 const isFAQ = computed(() => (kbInfo.value?.type || '') === 'faq');
 const isWiki = computed(() => !!kbInfo.value?.indexing_strategy?.wiki_enabled);
+
 const validTabs = ['documents', 'wiki', 'graph', 'gallery'] as const
 type KbTab = typeof validTabs[number]
 const initTab = validTabs.includes(route.query.tab as any) ? (route.query.tab as KbTab) : 'documents'
@@ -114,22 +117,12 @@ const wikiIndexingTip = computed(() => {
   if (!wikiIsIndexing.value) return ''
   return t('knowledgeEditor.wikiBrowser.queueStatus', { count: wikiStatus.value.pendingTasks || 0 })
 })
-// The views of this knowledge base, in header order. Wiki and graph only
-// exist on wiki KBs; a stale wiki/graph tab on another KB renders documents,
-// so the header marks documents active then too.
+// The views of this knowledge base, in header order. Streamlined to Documents only.
 const kbViewTabs = computed(() => {
   const w = 'knowledgeEditor.wikiBrowser'
   const tabs: Array<{ key: KbTab; icon: string; label: string; tip: string; indexing?: boolean }> = [
     { key: 'documents', icon: 'file', label: t(`${w}.tabDocuments`), tip: t(`${w}.tabDocumentsTip`) },
   ]
-  if (isWiki.value) {
-    const indexing = wikiIsIndexing.value
-    tabs.push(
-      { key: 'wiki', icon: 'book-open', label: 'Wiki', tip: indexing ? wikiIndexingTip.value : t(`${w}.tabWikiTip`), indexing },
-      { key: 'graph', icon: 'relation', label: t(`${w}.tabGraph`), tip: indexing ? wikiIndexingTip.value : t(`${w}.tabGraphTip`), indexing },
-    )
-  }
-  tabs.push({ key: 'gallery', icon: 'image', label: t(`${w}.tabGallery`), tip: t(`${w}.tabGalleryTip`) })
   return tabs
 })
 const shownKbTab = computed<KbTab>(() =>
@@ -828,16 +821,39 @@ const writeStoredFlag = (key: string, value: boolean) => {
   }
 };
 const folderTree = ref<KnowledgeFolderTree | null>(null);
+const customFolderPaths = ref<string[]>([]);
+const displayFolderTree = computed(() =>
+  mergeCustomFoldersIntoTree(folderTree.value, customFolderPaths.value),
+);
+const readCustomFolderPaths = (targetKbId: string): string[] => {
+  if (!targetKbId) return [];
+  try {
+    const raw = localStorage.getItem(`weknora.kb.customFolders.${targetKbId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string' && !!p) : [];
+  } catch {
+    return [];
+  }
+};
+const writeCustomFolderPaths = (targetKbId: string, paths: string[]) => {
+  if (!targetKbId) return;
+  try {
+    localStorage.setItem(`weknora.kb.customFolders.${targetKbId}`, JSON.stringify(paths));
+  } catch {
+    // Ignore storage failures in private browsing mode.
+  }
+};
 const folderTreeLoading = ref(false);
 // The folder being browsed; ROOT_FOLDER_PATH ('') is the knowledge base top
 // level, a real node of the tree rather than a separate mode.
 const selectedFolderPath = ref<string>(ROOT_FOLDER_PATH);
 watch([kbId, selectedFolderPath], resetStatusPolling, { flush: 'sync' });
 const folderTreeCollapsed = ref(readStoredFlag(FOLDER_TREE_COLLAPSED_KEY));
-const hasFolders = computed(() => (folderTree.value?.folders?.length ?? 0) > 0);
-// The folder column only earns its space once the knowledge base actually has
-// folders, so knowledge bases filled with single-file uploads look unchanged.
-const showFolderTree = computed(() => !isFAQ.value && hasFolders.value);
+const hasFolders = computed(() => (displayFolderTree.value?.folders?.length ?? 0) > 0);
+// Always display the folder tree sidebar for document knowledge bases so users
+// can organize and create folders from the very first document.
+const showFolderTree = computed(() => !isFAQ.value);
 // Browsing lists one folder's own contents; filtering searches its whole
 // subtree. There is no mode switch: the list follows what the user is doing.
 const isFiltering = computed(() =>
@@ -858,7 +874,7 @@ const showDocumentFolderPath = computed(() => hasFolders.value && isFiltering.va
 const visibleSubFolders = computed(() => {
   if (isFiltering.value) return []
   if (showFolderTree.value && !folderTreeCollapsed.value) return []
-  return childFolders(folderTree.value, selectedFolderPath.value)
+  return childFolders(displayFolderTree.value, selectedFolderPath.value)
 });
 const folderBreadcrumbs = computed(() => buildFolderBreadcrumbs(selectedFolderPath.value));
 // What the breadcrumb reports is the folder's own contents the way a file
@@ -869,7 +885,7 @@ const folderBreadcrumbs = computed(() => buildFolderBreadcrumbs(selectedFolderPa
 // reports only the flat result set, so it adds no folder number.
 const folderContentsCount = computed<{ documents: number; folders: number }>(() => ({
   documents: total.value,
-  folders: isFiltering.value ? 0 : childFolders(folderTree.value, selectedFolderPath.value).length,
+  folders: isFiltering.value ? 0 : childFolders(displayFolderTree.value, selectedFolderPath.value).length,
 }));
 // A folder with no sub-folders would otherwise end the breadcrumb with
 // "/ 0 folders"; the document-only message is the whole truth there.
@@ -886,7 +902,7 @@ const folderContentsMessage = computed(() => ({
 // Documents below the selected folder rather than directly inside it; this is
 // what tells "documents live in the sub-folders" apart from "nothing here yet".
 const folderSubfolderDocumentCount = computed(() => {
-  const counts = folderDocumentCounts(folderTree.value, selectedFolderPath.value);
+  const counts = folderDocumentCounts(displayFolderTree.value, selectedFolderPath.value);
   if (!counts) return 0;
   return Math.max(0, counts.total - counts.direct);
 });
@@ -970,8 +986,10 @@ const isCurrentKb = (targetKbId: string) => targetKbId === kbId.value;
 const loadFolderTree = async (kbIdValue: string) => {
   if (!kbIdValue || isFAQ.value) {
     folderTree.value = null;
+    customFolderPaths.value = [];
     return;
   }
+  customFolderPaths.value = readCustomFolderPaths(kbIdValue);
   folderTreeLoading.value = true;
   try {
     const res: any = await listKnowledgeFolders(kbIdValue);
@@ -979,7 +997,7 @@ const loadFolderTree = async (kbIdValue: string) => {
     folderTree.value = (res?.data as KnowledgeFolderTree) || null;
     // A folder can disappear (its last document was deleted or moved); fall
     // back to the root instead of leaving an empty, unreachable view.
-    if (!folderExistsInTree(folderTree.value?.folders || [], selectedFolderPath.value)) {
+    if (!folderExistsInTree(displayFolderTree.value?.folders || [], selectedFolderPath.value)) {
       selectedFolderPath.value = ROOT_FOLDER_PATH;
     }
   } catch (error) {
@@ -998,6 +1016,17 @@ const handleFolderSelect = (path: string) => {
   selectedFolderPath.value = path;
 };
 
+const handleFolderCreate = (path: string) => {
+  const normalized = normalizeFolderPath(path);
+  if (!normalized || !kbId.value) return;
+  if (!customFolderPaths.value.includes(normalized)) {
+    const next = [...customFolderPaths.value, normalized];
+    customFolderPaths.value = next;
+    writeCustomFolderPaths(kbId.value, next);
+  }
+  selectedFolderPath.value = normalized;
+};
+
 // ── Re-filing documents and renaming folders ──
 // folder_path is display-only, so both operations are a plain column update:
 // nothing is re-parsed, re-chunked or re-embedded.
@@ -1011,7 +1040,7 @@ const folderOptions = computed(() => {
       walk(node.children || [], depth + 1);
     });
   };
-  walk(folderTree.value?.folders || [], 0);
+  walk(displayFolderTree.value?.folders || [], 0);
   return result;
 });
 
@@ -1039,7 +1068,19 @@ const handleFolderRename = async ({ from, to }: { from: string; to: string }) =>
   try {
     const res: any = await renameKnowledgeFolder(kbId.value, from, to);
     const movedCount = res?.data?.moved_count ?? 0;
-    if (movedCount === 0) {
+    const hadCustomMatch = customFolderPaths.value.some(
+      (p) => p === from || p.startsWith(`${from}/`),
+    );
+    if (hadCustomMatch) {
+      const next = customFolderPaths.value.map((p) => {
+        if (p === from) return to;
+        if (p.startsWith(`${from}/`)) return to + p.slice(from.length);
+        return p;
+      });
+      customFolderPaths.value = next;
+      writeCustomFolderPaths(kbId.value, next);
+    }
+    if (movedCount === 0 && !hadCustomMatch) {
       MessagePlugin.warning(t('knowledgeBase.folderTree.renameFailed'));
       await loadFolderTree(kbId.value);
       return;
@@ -1856,6 +1897,8 @@ const enqueueUploads = (
     tagIds?: string[];
     /** Destination folder confirmed in the upload dialog; '' is the root. */
     targetFolder?: string;
+    title?: string;
+    customMetadata?: Record<string, unknown>;
   } = {},
 ) => {
   const targetKbId = kbId.value;
@@ -1867,7 +1910,14 @@ const enqueueUploads = (
     targetFolder,
     tagIds: options.tagIds,
     processConfig: options.processConfig,
-    uploads: files.map(file => ({ file, fileName: buildUploadFileName(file, targetFolder) })),
+    title: options.title,
+    customMetadata: options.customMetadata,
+    uploads: files.map(file => ({
+      file,
+      fileName: buildUploadFileName(file, targetFolder),
+      title: files.length === 1 ? options.title : undefined,
+      customMetadata: options.customMetadata,
+    })),
   });
 };
 
@@ -1925,12 +1975,17 @@ const handleUploadConfirmResult = async (result: UploadConfirmResult) => {
   const urls = result.urls || [];
   const processConfig = result.processConfig;
   const tagIds = result.tagIds || [];
+  if (result.targetFolder) {
+    handleFolderCreate(result.targetFolder);
+  }
 
   if (files.length > 0) {
     enqueueUploads(files, {
       processConfig,
       tagIds,
       targetFolder: result.targetFolder || ROOT_FOLDER_PATH,
+      title: result.title,
+      customMetadata: result.customMetadata,
     });
   }
 
@@ -2549,10 +2604,10 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
            carried over from a previous KB) falls back to documents. -->
       <template v-if="activeKbTab === 'documents' || (!isWiki && activeKbTab !== 'gallery')">
         <div class="knowledge-main">
-          <KbFolderTree v-if="showFolderTree && !folderTreeCollapsed" :tree="folderTree" :selected-path="selectedFolderPath"
+          <KbFolderTree v-if="showFolderTree && !folderTreeCollapsed" :tree="displayFolderTree" :selected-path="selectedFolderPath"
             :loading="folderTreeLoading" :can-edit="canEdit" :root-label="kbInfo?.name"
             @select="handleFolderSelect" @update:collapsed="handleFolderTreeCollapsedChange"
-            @rename="handleFolderRename" />
+            @rename="handleFolderRename" @create="handleFolderCreate" />
           <div class="tag-content">
             <div class="doc-card-area">
               <div class="doc-filter-bar">

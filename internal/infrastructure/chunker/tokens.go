@@ -13,19 +13,21 @@ import (
 
 // Language identifiers used by the token estimator and the heuristic splitter.
 const (
-	LangEnglish = "en"
-	LangGerman  = "de"
-	LangChinese = "zh"
-	LangMixed   = "mixed"
+	LangEnglish    = "en"
+	LangGerman     = "de"
+	LangChinese    = "zh"
+	LangVietnamese = "vi"
+	LangMixed      = "mixed"
 )
 
 // charsPerToken holds approximate chars/token ratios per language.
 // Numbers err on the conservative side so estimates over-shoot a little.
 var charsPerToken = map[string]float64{
-	LangEnglish: 4.0,
-	LangGerman:  4.5,
-	LangChinese: 1.7,
-	LangMixed:   3.0,
+	LangEnglish:    4.0,
+	LangGerman:     4.5,
+	LangChinese:    1.7,
+	LangVietnamese: 3.5,
+	LangMixed:      3.0,
 }
 
 // ApproxTokenCount returns a conservative token estimate for s in the given

@@ -383,6 +383,27 @@ func (h *KnowledgeHandler) CreateKnowledgeFromFile(c *gin.Context) {
 		logger.Infof(ctx, "Received file metadata: %s", secutils.SanitizeForLog(fmt.Sprintf("%v", metadata)))
 	}
 
+	customTitle := strings.TrimSpace(c.PostForm("title"))
+	customMetadataStr := strings.TrimSpace(c.PostForm("custom_metadata"))
+	if customMetadataStr != "" {
+		if err := service.ValidateCustomMetadataJSON(types.JSON(customMetadataStr)); err != nil {
+			logger.Error(ctx, "Failed to validate custom_metadata", err)
+			c.Error(errors.NewBadRequestError("Invalid custom_metadata format").WithDetails(err.Error()))
+			return
+		}
+	}
+	if customTitle != "" || customMetadataStr != "" {
+		if metadata == nil {
+			metadata = make(map[string]string)
+		}
+		if customTitle != "" {
+			metadata["__custom_title"] = customTitle
+		}
+		if customMetadataStr != "" {
+			metadata["__custom_metadata"] = customMetadataStr
+		}
+	}
+
 	enableMultimodelForm := c.PostForm("enable_multimodel")
 	var enableMultimodel *bool
 	if enableMultimodelForm != "" {

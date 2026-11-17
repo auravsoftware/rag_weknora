@@ -179,17 +179,42 @@ func TestSentenceSeparators(t *testing.T) {
 	}
 }
 
+func TestVietnameseChapterPattern(t *testing.T) {
+	cases := []struct {
+		in    string
+		match bool
+	}{
+		{"Phần I: Quy định chung", true},
+		{"CHƯƠNG II - QUẢN LÝ TÀI LIỆU", true},
+		{"Mục 1. Phạm vi áp dụng", true},
+		{"Tiểu mục 2: Trách nhiệm thi hành", true},
+		{"Điều 15. Hiệu lực thi hành", true},
+		{"Khoản 3. Quy định chuyển tiếp", true},
+		{"Đoạn văn bình thường không phải tiêu đề", false},
+	}
+	for _, c := range cases {
+		got := VietnameseChapterPattern.MatchString(c.in)
+		if got != c.match {
+			t.Errorf("VietnameseChapterPattern(%q): got %v want %v", c.in, got, c.match)
+		}
+	}
+}
+
 func TestChapterPatternsForLangs(t *testing.T) {
-	if got := ChapterPatternsForLangs(nil); len(got) != 3 {
-		t.Errorf("nil langs should return all 3, got %d", len(got))
+	if got := ChapterPatternsForLangs(nil); len(got) != 4 {
+		t.Errorf("nil langs should return all 4, got %d", len(got))
 	}
 	if got := ChapterPatternsForLangs([]string{LangGerman}); len(got) != 1 {
 		t.Errorf("only DE requested should return 1, got %d", len(got))
 	}
+	if got := ChapterPatternsForLangs([]string{LangVietnamese}); len(got) != 1 {
+		t.Errorf("only VI requested should return 1, got %d", len(got))
+	}
 	if got := ChapterPatternsForLangs([]string{LangGerman, LangChinese}); len(got) != 2 {
 		t.Errorf("DE+ZH requested should return 2, got %d", len(got))
 	}
-	if got := ChapterPatternsForLangs([]string{"xx"}); len(got) != 3 {
-		t.Errorf("unknown lang should fall back to all 3, got %d", len(got))
+	if got := ChapterPatternsForLangs([]string{"xx"}); len(got) != 4 {
+		t.Errorf("unknown lang should fall back to all 4, got %d", len(got))
 	}
 }
+
