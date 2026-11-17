@@ -20,7 +20,7 @@ builtin_models:
       provider: generic
       interface_type: openai
       supports_vision: true
-      context_window: 8192
+      context_window: 32768
       max_output_tokens: 4096
 
   - id: builtin-qwen25-vl-ocr
@@ -35,7 +35,7 @@ builtin_models:
       provider: generic
       interface_type: openai
       supports_vision: true
-      context_window: 8192
+      context_window: 32768
       max_output_tokens: 4096
 
   - id: builtin-bge-m3-embedding
