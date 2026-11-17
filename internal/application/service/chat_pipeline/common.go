@@ -80,6 +80,7 @@ func prepareMessagesWithHistory(chatManage *types.ChatManage) []chat.Message {
 		"contexts": chatManage.RenderedContexts,
 	})
 	systemPrompt += "\n\n" + types.SourceDataBoundaryPrompt + "\n\n" + types.SourcedAnswerOutputPrompt
+	systemPrompt += "\n\n[QUY TẮC BẮT BUỘC VỀ NGÔN NGỮ]\nBẮT BUỘC trả lời bằng TIẾNG VIỆT nếu câu hỏi của người dùng hoặc tài liệu tham khảo là tiếng Việt. Tuyệt đối không trả lời bằng tiếng Anh trừ khi người dùng yêu cầu rõ ràng.\n"
 	// Memory goes at the end of the system prompt, after the retrieved-context
 	// placeholders have been rendered, so a remembered sentence can never be
 	// substituted into prompt structure.

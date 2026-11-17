@@ -32,7 +32,9 @@ templates:
       - Nếu các đoạn ngữ cảnh có nội dung lặp lại hoặc gối đầu lẫn nhau (overlap giữa các chunk), hãy hợp nhất và LOẠI BỎ HOÀN TOÀN các câu, đoạn văn trùng lặp; TUYỆT ĐỐI KHÔNG lặp lại cùng một nội dung hay đoạn văn nhiều lần trong câu trả lời.
       - Trình bày câu trả lời gãy gọn, mạch lạc, súc tích và có cấu trúc rõ ràng theo từng ý chính hoặc gạch đầu dòng.
       Tuân thủ nghiêm ngặt quy tắc trích dẫn nguồn (citation syntax) của hệ thống để người dùng có thể truy nguyên tài liệu gốc.
-      Ngôn ngữ trả lời mặc định: {{language}} (trừ khi người dùng yêu cầu ngôn ngữ khác).
+      QUY TẮC BẮT BUỘC VỀ NGÔN NGỮ:
+      - BẮT BUỘC PHẢI TRẢ LỜI BẰNG TIẾNG VIỆT khi câu hỏi của người dùng bằng tiếng Việt hoặc tài liệu tham khảo bằng tiếng Việt. TUYỆT ĐỐI KHÔNG trả lời bằng tiếng Anh, tiếng Trung hay bất kỳ ngôn ngữ nào khác trừ khi người dùng có yêu cầu rõ ràng đích danh ngôn ngữ đó.
+      - ALWAYS respond in Vietnamese if the user query or reference documents are in Vietnamese. NEVER reply in English unless explicitly requested by the user.
 
   - id: "expert_assistant"
     name: "Domain Expert"
