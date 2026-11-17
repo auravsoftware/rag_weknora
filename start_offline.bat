@@ -55,10 +55,15 @@ if not exist "models_cache\huggingface" mkdir "models_cache\huggingface"
 if not exist "data\files" mkdir "data\files"
 echo [✓] Đã tạo thư mục lưu trữ: models_cache\huggingface và data\files.
 
-REM 5. Khoi chay Docker Compose
-echo [+] Đang bung Docker Compose [kéo image và chạy các container]...
-docker compose -f docker-compose.offline-24gb.yml up -d
+REM 5. Khoi chay Docker Compose [kich hoat du 7/7 container]
+echo [+] Đang bung Docker Compose [kich hoat du 7/7 container]...
+docker compose -f docker-compose.offline-24gb.yml up -d frontend app docreader postgres redis vllm-qwen25-vl infinity-models
 if errorlevel 1 goto COMPOSE_FAILED
+
+REM 6. Tu dong tao 2 tai khoan nguoi dung neu chua ton tai
+timeout /t 3 >nul 2>&1
+curl -s -X POST http://localhost:7667/api/v1/auth/register -H "Content-Type: application/json" -d "{\"username\":\"phuongdong\",\"email\":\"phuongdong@vbsp.local\",\"password\":\"itcn28ht\"}" >nul 2>&1
+curl -s -X POST http://localhost:7667/api/v1/auth/register -H "Content-Type: application/json" -d "{\"username\":\"vbspnghean\",\"email\":\"vbspnghean@vbsp.local\",\"password\":\"itcn28ht\"}" >nul 2>&1
 goto COMPOSE_OK
 
 :COMPOSE_FAILED
@@ -74,7 +79,7 @@ exit /b 1
 :COMPOSE_OK
 echo.
 echo ================================================================================
-echo    KHỞI CHẠY HỆ THỐNG THÀNH CÔNG!
+echo    KHỞI CHẠY HỆ THỐNG THÀNH CÔNG! [7/7 CONTAINER SẴN SÀNG]
 echo ================================================================================
 echo   - Giao diện Web RAG Tiếng Việt : http://localhost:7666
 echo   - Backend Core API             : http://localhost:7667
@@ -83,6 +88,12 @@ echo   - Redis Cache                  : Cổng 7669
 echo   - vLLM [Qwen2.5-VL-7B OCR+LLM] : http://localhost:7670/v1
 echo   - Infinity [BGE-M3 + Reranker] : http://localhost:7671/v1
 echo   - DocReader Parser             : Cổng 7672
+echo ================================================================================
+echo    DANH SÁCH TÀI KHOẢN ĐĂNG NHẬP (3 KHÔNG GIAN LÀM VIỆC ĐỘC LẬP):
+echo ================================================================================
+echo   [1] Quản trị viên: User: admin       ^| Pass: AdminPassword123!
+echo   [2] Người dùng 1 : User: phuongdong  ^| Pass: itcn28ht
+echo   [3] Người dùng 2 : User: vbspnghean  ^| Pass: itcn28ht
 echo ================================================================================
 echo   Mở trình duyệt truy cập ngay: http://localhost:7666
 echo ================================================================================

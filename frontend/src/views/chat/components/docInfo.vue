@@ -29,6 +29,16 @@
                             }}</span>
                     </div>
                     <div class="doc-group-actions" v-if="!embeddedMode && group.knowledgeBaseId" @click.stop>
+                        <t-tooltip :content="$t('chat.referenceSourceView')">
+                            <button
+                                type="button"
+                                class="doc-group-navigate doc-group-preview"
+                                :title="$t('chat.referenceSourceView')"
+                                @click="openSourcePreview(group)"
+                            >
+                                <t-icon name="file-search" size="14px" />
+                            </button>
+                        </t-tooltip>
                         <t-tooltip :content="$t('chat.navigateToDocument')">
                             <a
                                 class="doc-group-navigate"
@@ -104,6 +114,21 @@ const referBoxSwitch = () => {
         return;
     }
     showReferBox.value = !showReferBox.value;
+};
+
+const openSourcePreview = (group) => {
+    const refs = props.session?.knowledge_references;
+    if (!referencesDrawer || !refs?.length) return;
+    const firstChunk = group.chunks?.[0];
+    referencesDrawer.open({
+        references: refs,
+        highlight: firstChunk ? {
+            chunkId: firstChunk.id,
+            knowledgeId: group.knowledgeId || firstChunk.knowledge_id,
+            openSource: true,
+        } : null,
+        messageId: props.session?.id ? String(props.session.id) : '',
+    });
 };
 
 const toggleGroup = (key) => {

@@ -467,8 +467,7 @@ const registerData = reactive<{ [key: string]: any }>({
 // Login form validation rules
 const formRules = computed(() => ({
   email: [
-    { required: true, message: t('auth.emailRequired'), type: 'error' },
-    { email: true, message: t('auth.emailInvalid'), type: 'error' }
+    { required: true, message: t('auth.emailRequired'), type: 'error' }
   ],
   password: [
     { required: true, message: t('auth.passwordRequired'), type: 'error' },
@@ -674,8 +673,16 @@ const handleLogin = async () => {
 
     loading.value = true
 
+    let targetEmail = (formData.email || '').trim()
+    if (!targetEmail.includes('@')) {
+      if (targetEmail.toLowerCase() === 'admin') targetEmail = 'admin@weknora.local'
+      else if (targetEmail.toLowerCase() === 'phuongdong') targetEmail = 'phuongdong@vbsp.local'
+      else if (targetEmail.toLowerCase() === 'vbspnghean') targetEmail = 'vbspnghean@vbsp.local'
+      else targetEmail = `${targetEmail}@vbsp.local`
+    }
+
     const response = await login({
-      email: formData.email,
+      email: targetEmail,
       password: formData.password,
     })
 
@@ -820,30 +827,6 @@ onMounted(async () => {
     }
   } catch {
     // Auto-setup may be unavailable outside the native Lite shell.
-  }
-
-  // Tự động bỏ qua đăng nhập cho môi trường máy chủ nội bộ
-  try {
-    const defaultEmail = 'admin@weknora.local'
-    const defaultPassword = 'AdminPassword123!'
-    const defaultUsername = 'admin'
-
-    let res = await login({ email: defaultEmail, password: defaultPassword })
-    if (!res.success) {
-      await register({
-        username: defaultUsername,
-        email: defaultEmail,
-        password: defaultPassword
-      })
-      res = await login({ email: defaultEmail, password: defaultPassword })
-    }
-    if (res.success && res.token) {
-      await persistLoginResponse(res)
-      router.replace(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
-      return
-    }
-  } catch (err) {
-    console.warn('Auto login bypass error in Login.vue:', err)
   }
 
   loadOIDCConfig()

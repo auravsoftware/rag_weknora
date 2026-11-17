@@ -151,16 +151,21 @@
               @click="toggleExpanded"
             >
               <span class="tree-root-status">{{ collapsedStatusText }}</span>
-              <span
-                v-if="referenceSummaryText"
-                class="tree-root-reference"
-              >
-                {{ referenceSummaryText }}
-              </span>
               <ChatTimelineIcon width="14" height="14"
                 class="tree-root-expand__icon"
                 :name="showExpandedTimeline ? 'chevron-down' : 'chevron-right'"
               />
+            </button>
+            <button
+              v-if="referenceSummaryText"
+              type="button"
+              class="tree-root-reference-btn"
+              :title="t('chat.referenceSourceView')"
+              @click.stop="toggleReferencesDrawer"
+            >
+              <t-icon name="file-search" size="14px" />
+              <span>{{ referenceSummaryText }}</span>
+              <t-icon name="jump" size="13px" />
             </button>
           </div>
         </div>
@@ -643,6 +648,34 @@ onBeforeUnmount(() => {
     &:hover {
       background: transparent;
       color: var(--td-text-color-primary);
+    }
+  }
+
+  .tree-root-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .tree-root-reference-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 14px;
+    background: var(--td-brand-color-light, rgba(0, 82, 217, 0.08));
+    color: var(--td-brand-color, #0052d9);
+    border: 1px solid var(--td-brand-color-focus, rgba(0, 82, 217, 0.25));
+    font-size: var(--app-text-xs, 12px);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--td-brand-color, #0052d9);
+      color: #fff;
+      border-color: var(--td-brand-color, #0052d9);
     }
   }
 
