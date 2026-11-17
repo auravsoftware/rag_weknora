@@ -46,7 +46,7 @@ fi
 
 # 5. Khởi chạy toàn bộ hệ thống bằng Docker Compose với dải cổng 7666 - 7672
 echo "[+] Đang khởi chạy các container dịch vụ..."
-$COMPOSE_CMD -f docker-compose.offline-24gb.yml up -d --force-recreate frontend vllm-qwen25-vl
+$COMPOSE_CMD -f docker-compose.offline-24gb.yml up -d
 
 echo "================================================================================"
 echo "    KHỞI CHẠY HỆ THỐNG THÀNH CÔNG!                                              "

@@ -57,7 +57,7 @@ echo [✓] Đã tạo thư mục lưu trữ: models_cache\huggingface và data\f
 
 REM 5. Khoi chay Docker Compose
 echo [+] Đang bung Docker Compose [kéo image và chạy các container]...
-docker compose -f docker-compose.offline-24gb.yml up -d --force-recreate frontend vllm-qwen25-vl
+docker compose -f docker-compose.offline-24gb.yml up -d
 if errorlevel 1 goto COMPOSE_FAILED
 goto COMPOSE_OK
 
