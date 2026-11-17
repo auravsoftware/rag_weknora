@@ -3,8 +3,7 @@
         <!-- 展开时：Logo + 搜索/折叠按钮同行 -->
         <div class="logo_row" v-if="!uiStore.sidebarCollapsed">
             <div class="logo_box" @click="router.push('/platform/knowledge-bases')" style="cursor: pointer;">
-                <img class="logo" src="@/assets/img/weknora.png" alt="">
-                <sup v-if="isLiteEdition" class="lite-badge">Lite</sup>
+                <span class="custom-brand-logo">RAG AI</span>
             </div>
             <div class="logo_actions">
                 <t-tooltip v-if="assistantStore.entry === 'sidebar'" :content="assistantName" placement="bottom">
@@ -1402,18 +1401,11 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         min-width: 0;
         overflow: hidden;
 
-        .logo {
-            width: 108px;
-            height: auto;
-        }
-
-        .lite-badge {
-            margin-left: 2px;
-            align-self: flex-start;
-            margin-top: 2px;
-            font-size: 9px;
-            font-weight: 600;
-            color: var(--td-text-color-placeholder);
+        .custom-brand-logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--td-text-color-primary);
+            letter-spacing: 0.5px;
             user-select: none;
             white-space: nowrap;
         }

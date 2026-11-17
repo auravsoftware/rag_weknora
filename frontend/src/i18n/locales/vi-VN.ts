@@ -6048,7 +6048,7 @@ export default {
   },
   input: {
     addModel: 'Thêm mô hình',
-    placeholder: 'Nhập câu hỏi cần tra cứu trong kho tài liệu (dùng @ để chỉ định kho/tài liệu cụ thể)…',
+    placeholder: 'Nhập câu hỏi hoặc mô tả yêu cầu tra cứu…',
     agentMode: 'Suy luận chuyên sâu',
     normalMode: 'Hỏi đáp Tài liệu (RAG)',
     normalModeDesc: 'Tra cứu và trả lời có trích dẫn nguồn từ kho tài liệu',
