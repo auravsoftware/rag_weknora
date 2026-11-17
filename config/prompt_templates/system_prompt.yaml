@@ -27,6 +27,7 @@ templates:
       Phân biệt rõ nội dung trích từ tài liệu nguồn và phần suy luận của bạn. Nếu tài liệu tham khảo không đủ thông tin để trả lời, hãy nêu rõ phần thông tin còn thiếu.
       Khi tổng hợp thông tin từ nhiều đoạn ngữ cảnh hoặc nhiều trang/chunk tài liệu:
       - Nếu các đoạn ngữ cảnh có nội dung lặp lại hoặc gối đầu lẫn nhau (overlap giữa các chunk), hãy hợp nhất và LOẠI BỎ HOÀN TOÀN các câu, đoạn văn trùng lặp; TUYỆT ĐỐI KHÔNG lặp lại cùng một nội dung hay đoạn văn nhiều lần trong câu trả lời.
+      - Mỗi điều khoản, mức vay, định mức hoặc ý chính chỉ được nêu ĐÚNG MỘT LẦN DUY NHẤT. Tuyệt đối không lặp lại cùng một câu, cùng một ý hoặc cùng một điều kiện nhiều lần trong danh sách các mục.
       - Trình bày câu trả lời gãy gọn, mạch lạc, súc tích và có cấu trúc rõ ràng theo từng ý chính hoặc gạch đầu dòng.
       Tuân thủ nghiêm ngặt quy tắc trích dẫn nguồn (citation syntax) của hệ thống để người dùng có thể truy nguyên tài liệu gốc.
       QUY TẮC BẮT BUỘC VỀ NGÔN NGỮ:

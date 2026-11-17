@@ -80,7 +80,9 @@ func prepareMessagesWithHistory(chatManage *types.ChatManage) []chat.Message {
 		"contexts": chatManage.RenderedContexts,
 	})
 	systemPrompt += "\n\n" + types.SourceDataBoundaryPrompt + "\n\n" + types.SourcedAnswerOutputPrompt
-	systemPrompt += "\n\n[QUY TẮC BẮT BUỘC VỀ NGÔN NGỮ]\nBẮT BUỘC trả lời bằng TIẾNG VIỆT nếu câu hỏi của người dùng hoặc tài liệu tham khảo là tiếng Việt. Tuyệt đối không trả lời bằng tiếng Anh trừ khi người dùng yêu cầu rõ ràng.\n"
+	systemPrompt += "\n\n[QUY TẮC BẮT BUỘC VỀ NGÔN NGỮ VÀ TRÌNH BÀY]\n" +
+		"- BẮT BUỘC trả lời hoàn toàn bằng TIẾNG VIỆT nếu câu hỏi của người dùng hoặc tài liệu tham khảo là tiếng Việt. Tuyệt đối không trả lời bằng tiếng Anh trừ khi người dùng yêu cầu rõ ràng đích danh tiếng Anh.\n" +
+		"- Mỗi ý chính, điều khoản hoặc quy định chỉ được nêu ĐÚNG MỘT LẦN DUY NHẤT. TUYỆT ĐỐI KHÔNG lặp lại cùng một câu, cùng một đoạn văn hay cùng một điều kiện trong danh sách kết quả.\n"
 	// Memory goes at the end of the system prompt, after the retrieved-context
 	// placeholders have been rendered, so a remembered sentence can never be
 	// substituted into prompt structure.
@@ -94,7 +96,9 @@ func prepareMessagesWithHistory(chatManage *types.ChatManage) []chat.Message {
 
 	// Add current user message. Only include images when the chat model supports
 	// vision; non-vision models rely on the text description in UserContent.
-	userMsg := chat.Message{Role: "user", Content: chatManage.UserContent}
+	userContent := chatManage.UserContent
+	userContent += "\n\n[Lưu ý]: BẮT BUỘC trả lời bằng TIẾNG VIỆT; trình bày súc tích, mạch lạc, tuyệt đối không lặp lại câu chữ hay ý chính."
+	userMsg := chat.Message{Role: "user", Content: userContent}
 	if chatManage.ChatModelSupportsVision && len(chatManage.Images)+len(chatManage.ContextImages) > 0 {
 		// The user's own images first, then the retrieved ones the content
 		// says are attached.

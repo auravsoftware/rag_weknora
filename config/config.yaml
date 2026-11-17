@@ -7,7 +7,7 @@ server:
 # NOTE: Prompt content is resolved from prompt_templates/ YAML files via xxx_id fields.
 # Set the _id to the template ID you want; the system will load its content at startup.
 conversation:
-  max_rounds: 5
+  max_rounds: 0
   keyword_threshold: 0.3
   embedding_top_k: 30
   vector_threshold: 0.2
@@ -29,7 +29,9 @@ conversation:
     max_input_chars: 8192
     repeat_penalty: 1.0
     temperature: 0.3
-    max_completion_tokens: 1024
+    max_completion_tokens: 2048
+    frequency_penalty: 0.5
+    presence_penalty: 0.2
     no_match_prefix: |-
       <think>
       </think>

@@ -22,13 +22,13 @@ templates:
     default: true
     has_knowledge_base: true
     content: |
-      ## Reference materials (source data)
+      ## Tài liệu tham khảo (Reference materials)
       {{contexts}}
 
-      ## Request metadata
-      Current time: {{current_time}} {{current_week}}
+      ## Thông tin yêu cầu
+      Thời gian hiện tại: {{current_time}} {{current_week}}
 
-      ## User request
+      ## Câu hỏi của người dùng
       {{query}}
 
   - id: "detailed_context"

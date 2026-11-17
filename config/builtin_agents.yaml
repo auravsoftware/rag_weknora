@@ -26,12 +26,12 @@ builtin_agents:
       agent_mode: "quick-answer"
       system_prompt_id: "default_kb"
       context_template_id: "default_context"
-      temperature: 0.7
-      max_completion_tokens: 0
+      temperature: 0.3
+      max_completion_tokens: 2048
       web_search_enabled: true
       web_search_max_results: 5
-      multi_turn_enabled: true
-      history_turns: 5
+      multi_turn_enabled: false
+      history_turns: 0
       kb_selection_mode: "all"
       retrieve_kb_only_when_mentioned: false
       faq_priority_enabled: true

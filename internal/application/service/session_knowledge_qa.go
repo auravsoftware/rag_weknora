@@ -78,6 +78,15 @@ func (s *sessionService) KnowledgeQA(
 	}
 
 	// Initialize ChatManage defaults from config.yaml
+	freqPenalty := s.cfg.Conversation.Summary.FrequencyPenalty
+	if freqPenalty <= 0 {
+		freqPenalty = 0.5
+	}
+	presPenalty := s.cfg.Conversation.Summary.PresencePenalty
+	if presPenalty <= 0 {
+		presPenalty = 0.2
+	}
+
 	summaryConfig := types.SummaryConfig{
 		Prompt:              s.cfg.Conversation.Summary.Prompt,
 		ContextTemplate:     s.cfg.Conversation.Summary.ContextTemplate,
@@ -85,6 +94,9 @@ func (s *sessionService) KnowledgeQA(
 		NoMatchPrefix:       s.cfg.Conversation.Summary.NoMatchPrefix,
 		MaxCompletionTokens: s.cfg.Conversation.Summary.MaxCompletionTokens,
 		Thinking:            s.cfg.Conversation.Summary.Thinking,
+		FrequencyPenalty:    freqPenalty,
+		PresencePenalty:     presPenalty,
+		TopP:                s.cfg.Conversation.Summary.TopP,
 	}
 	fallbackStrategy := types.FallbackStrategy(s.cfg.Conversation.FallbackStrategy)
 	if fallbackStrategy == "" {
@@ -176,6 +188,12 @@ func (s *sessionService) KnowledgeQA(
 	// Apply custom agent overrides (system prompt, temperature, retrieval params,
 	// rewrite, fallback, FAQ strategy, history turns)
 	s.applyAgentOverridesToChatManage(ctx, req.CustomAgent, chatManage)
+	// When Conversation.MaxRounds is configured as <= 0 (single-turn mode), strictly
+	// enforce MaxRounds = 0 to release all prior conversational context and prevent
+	// context bloat or repetition loops in RAG Q&A.
+	if s.cfg.Conversation.MaxRounds <= 0 {
+		chatManage.MaxRounds = 0
+	}
 	applyRequestReasoningEffort(
 		req.ReasoningEffort, &chatManage.SummaryConfig.Thinking, &chatManage.SummaryConfig.ReasoningEffort,
 	)
