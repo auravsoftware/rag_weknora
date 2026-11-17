@@ -189,7 +189,6 @@ services:
       - VLLM_WORKER_MULTIPROC_METHOD=spawn
       - VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
     command:
-      - "--model"
       - "${VLLM_MODEL_NAME:-Qwen/Qwen2.5-VL-7B-Instruct-AWQ}"
       - "--served-model-name"
       - "Qwen/Qwen2.5-VL-7B-Instruct-AWQ"
@@ -206,7 +205,7 @@ services:
       - "--max-num-seqs"
       - "${VLLM_MAX_NUM_SEQS:-4}"
       - "--limit-mm-per-prompt"
-      - "image=4"
+      - '{"image": 4}'
       - "--enforce-eager"
       - "--trust-remote-code"
       - "--host"
