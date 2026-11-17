@@ -4,7 +4,14 @@ echo ===========================================================================
 echo    BUNG DOCKER HỆ THỐNG RAG TIẾNG VIỆT 100%% OFFLINE [1x 24GB VRAM GPU]
 echo ================================================================================
 
-REM 1. Kiem tra Docker Desktop
+REM 1. Tu dong kiem tra va cap nhat ma nguon neu may co Git
+where git >nul 2>&1
+if not errorlevel 1 (
+    echo [+] Đang kiểm tra và đồng bộ cập nhật mới nhất từ GitHub...
+    git pull origin main
+)
+
+REM 2. Kiem tra Docker Desktop
 docker info >nul 2>&1
 if errorlevel 1 goto DOCKER_NOT_RUNNING
 goto DOCKER_IS_READY
@@ -28,7 +35,7 @@ exit /b 1
 :DOCKER_IS_READY
 echo [✓] Docker Engine đang hoạt động tốt.
 
-REM 2. Khoi tao hoac dong bo tep .env
+REM 3. Khoi tao hoac dong bo tep .env
 if not exist .env (
     echo [+] Chưa tìm thấy .env, đang tự động tạo từ .env.offline-24gb.example...
     copy .env.offline-24gb.example .env >nul
@@ -40,14 +47,14 @@ if not errorlevel 1 (
 )
 echo [✓] Tệp .env đã sẵn sàng [dải cổng an toàn 7666-7672].
 
-REM 3. Dam bao cac thu muc ton tai
+REM 4. Dam bao cac thu muc ton tai
 if not exist "models_cache\huggingface" mkdir "models_cache\huggingface"
 if not exist "data\files" mkdir "data\files"
 echo [✓] Đã tạo thư mục lưu trữ: models_cache\huggingface và data\files.
 
-REM 4. Khoi chay Docker Compose
+REM 5. Khoi chay Docker Compose
 echo [+] Đang bung Docker Compose [kéo image và chạy các container]...
-docker compose -f docker-compose.offline-24gb.yml up -d
+docker compose -f docker-compose.offline-24gb.yml up -d --force-recreate frontend
 if errorlevel 1 goto COMPOSE_FAILED
 goto COMPOSE_OK
 
