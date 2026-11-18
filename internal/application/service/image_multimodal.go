@@ -512,6 +512,17 @@ func (s *ImageMultimodalService) processImage(
 			c.ChunkType, c.ID, payload.ImageURL, len(c.Content))
 	}
 
+	// For scanned PDFs, update the owning text chunk's content with OCR text
+	// so the parent document text is real prose instead of a dead image link.
+	if payload.ImageSourceType == "scanned_pdf" && imageInfo.OCRText != "" && payload.ChunkID != "" {
+		if parentChunk, err := s.chunkService.GetRepository().GetChunkByID(ctx, payload.TenantID, payload.ChunkID); err == nil && parentChunk != nil {
+			parentChunk.Content = imageInfo.OCRText
+			if updateErr := s.chunkService.GetRepository().UpdateChunk(ctx, parentChunk); updateErr != nil {
+				logger.Warnf(ctx, "[ImageMultimodal] Failed to update parent chunk %s with OCR text: %v", payload.ChunkID, updateErr)
+			}
+		}
+	}
+
 	// Index chunks so they can be retrieved
 	s.indexChunks(ctx, *payload, newChunks, imgBytes, out)
 	out[keyIndexed] = true

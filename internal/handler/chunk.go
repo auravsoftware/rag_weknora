@@ -3,9 +3,11 @@ package handler
 import (
 	stderrors "errors"
 	"net/http"
+	"strings"
 
 	"github.com/Tencent/WeKnora/internal/application/service"
 	"github.com/Tencent/WeKnora/internal/errors"
+	"github.com/Tencent/WeKnora/internal/infrastructure/docparser"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -147,6 +149,33 @@ func (h *ChunkHandler) ListKnowledgeChunks(c *gin.Context) {
 		logger.ErrorWithFields(ctx, err, nil)
 		c.Error(errors.NewInternalServerError(err.Error()))
 		return
+	}
+
+	// For scanned PDFs or image-placeholder chunks, populate child OCR text
+	// so the frontend chunk viewer renders real text instead of raw image tags.
+	if len(result.Data) > 0 {
+		var placeholderIDs []string
+		for _, chunk := range result.Data {
+			if chunk != nil && chunk.ChunkType == types.ChunkTypeText && strings.TrimSpace(docparser.StripMarkdownImages(chunk.Content)) == "" {
+				placeholderIDs = append(placeholderIDs, chunk.ID)
+			}
+		}
+		if len(placeholderIDs) > 0 {
+			tenantID := types.MustTenantIDFromContext(ctx)
+			if childChunks, err := h.service.GetRepository().ListChunksByParentIDs(ctx, tenantID, placeholderIDs); err == nil && len(childChunks) > 0 {
+				ocrByParent := make(map[string]string, len(childChunks))
+				for _, child := range childChunks {
+					if child != nil && child.ChunkType == types.ChunkTypeImageOCR && child.Content != "" {
+						ocrByParent[child.ParentChunkID] = child.Content
+					}
+				}
+				for _, chunk := range result.Data {
+					if ocrText, ok := ocrByParent[chunk.ID]; ok && ocrText != "" {
+						chunk.Content = ocrText
+					}
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
