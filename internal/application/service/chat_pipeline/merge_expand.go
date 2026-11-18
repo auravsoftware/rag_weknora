@@ -46,7 +46,7 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 ) []*types.SearchResult {
 	const (
 		minLen = 1200
-		maxLen = 3500
+		maxLen = 6000
 	)
 
 	if len(results) == 0 || p.chunkRepo == nil {
@@ -157,6 +157,18 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 
 		prevCursor := baseChunk.PreChunkID
 		nextCursor := baseChunk.NextChunkID
+
+		if (prevCursor == "" || nextCursor == "") && baseChunk.ParentChunkID != "" {
+			p.fetchChunksIfMissing(ctx, chunkMap, baseChunk.ParentChunkID)
+			if parentChunk := chunkMap[baseChunk.ParentChunkID]; parentChunk != nil {
+				if prevCursor == "" {
+					prevCursor = parentChunk.PreChunkID
+				}
+				if nextCursor == "" {
+					nextCursor = parentChunk.NextChunkID
+				}
+			}
+		}
 
 		p.fetchChunksIfMissing(ctx, chunkMap, prevCursor, nextCursor)
 
@@ -291,9 +303,8 @@ func runeLen(s string) int {
 func mergeOrderedContent(prev, base, next string, maxLen int) string {
 	prevRunes, nextRunes := []rune(prev), []rune(next)
 	budget := max(maxLen-runeLen(base), 0)
-	prevKeep := min(len(prevRunes), budget/2)
-	nextKeep := min(len(nextRunes), budget-prevKeep)
-	prevKeep = min(len(prevRunes), budget-nextKeep)
+	nextKeep := min(len(nextRunes), budget)
+	prevKeep := min(len(prevRunes), budget-nextKeep)
 
 	content := base
 	if prevKeep > 0 {

@@ -4368,14 +4368,23 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 	} else {
 		splitChunks := chunker.Split(convertResult.MarkdownContent, chunkCfg)
 		chunks = make([]types.ParsedChunk, len(splitChunks))
+		isScannedPDF := convertResult != nil && convertResult.Metadata["image_source_type"] == "scanned_pdf"
 		for i, c := range splitChunks {
+			locs := sourceIndex.Locators(c.Start, c.End)
+			if (len(locs) == 0 || isScannedPDF) && i < len(storedImages) {
+				locs = types.SourceLocators{{
+					Type:    "pdf",
+					Page:    i + 1,
+					Mapping: "exact",
+				}}
+			}
 			chunks[i] = types.ParsedChunk{
 				Content:        c.Content,
 				ContextHeader:  c.ContextHeader,
 				Seq:            c.Seq,
 				Start:          c.Start,
 				End:            c.End,
-				SourceLocators: sourceIndex.Locators(c.Start, c.End),
+				SourceLocators: locs,
 			}
 		}
 		logger.Infof(ctx, "Split document into %d chunks for knowledge %s", len(chunks), knowledge.ID)
@@ -4753,12 +4762,24 @@ func (s *knowledgeService) enqueueImageMultimodalTasks(
 		// Match image to the ParsedChunk whose content contains the image URL.
 		// ChunkID was populated by processChunks with the real DB UUID.
 		chunkID := imageChunkOwner(img.ServingURL, chunks)
+		if chunkID == "" && idx < len(chunks) && chunks[idx].ChunkID != "" {
+			chunkID = chunks[idx].ChunkID
+		}
 		if chunkID == "" {
 			logger.Warnf(ctx, "Image has no owning text chunk: knowledge=%s image=%s", knowledge.ID, img.ServingURL)
 		}
 		imageSourceType := metadata["image_source_type"]
 		if source := imageSourceTypes[img.OriginalRef]; source != "" {
 			imageSourceType = source
+		}
+
+		sourceLocs := img.SourceLocators
+		if imageSourceType == "scanned_pdf" || metadata["image_source_type"] == "scanned_pdf" || len(sourceLocs) == 0 {
+			sourceLocs = types.SourceLocators{{
+				Type:    "pdf",
+				Page:    idx + 1,
+				Mapping: "exact",
+			}}
 		}
 
 		payload := types.ImageMultimodalPayload{
@@ -4776,7 +4797,7 @@ func (s *knowledgeService) enqueueImageMultimodalTasks(
 			Attempt:             attempt,
 			ImageIndex:          idx,
 			CounterBatch:        counterBatch,
-			SourceLocators:      img.SourceLocators,
+			SourceLocators:      sourceLocs,
 			ImageVectorEnabled:  &eff.ImageVectorEnabled,
 		}
 

@@ -161,8 +161,7 @@ func (h *ChunkHandler) ListKnowledgeChunks(c *gin.Context) {
 			}
 		}
 		if len(placeholderIDs) > 0 {
-			tenantID := types.MustTenantIDFromContext(ctx)
-			if childChunks, err := h.service.GetRepository().ListChunksByParentIDs(ctx, tenantID, placeholderIDs); err == nil && len(childChunks) > 0 {
+			if childChunks, err := h.service.GetRepository().ListChunksByParentIDsOnly(ctx, placeholderIDs); err == nil && len(childChunks) > 0 {
 				ocrByParent := make(map[string]string, len(childChunks))
 				for _, child := range childChunks {
 					if child != nil && child.ChunkType == types.ChunkTypeImageOCR && child.Content != "" {
