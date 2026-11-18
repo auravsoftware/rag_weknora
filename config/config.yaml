@@ -46,7 +46,7 @@ conversation:
 knowledge_base:
   chunk_size: 2000
   chunk_overlap: 200
-  split_markers: ["\nĐiều ", "\nKhoản ", "\nChương ", "\n\n", "\n", ". "]
+  split_markers: ["\n\n", "\n", ". ", "。"]
   document_process_timeout: 2h
   image_processing:
     enable_multimodal: true
