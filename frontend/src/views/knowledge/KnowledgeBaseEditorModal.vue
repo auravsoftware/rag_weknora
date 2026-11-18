@@ -40,7 +40,7 @@
             </div>
 
             <!-- 索引策略 (紧跟类型选择) -->
-            <div v-if="false && !isFAQ" class="form-item">
+            <div v-if="!isFAQ" class="form-item">
               <label class="form-label required">{{ $t('knowledgeEditor.indexing.title') }}</label>
               <p class="form-tip">{{ $t('knowledgeEditor.indexing.description') }}</p>
               <div class="indexing-checks" :class="{ 'is-locked': isIndexingLocked }"
@@ -840,9 +840,11 @@ const navItems = computed(() => {
   } else {
     items.push(
       { key: 'parser', icon: 'file-search', label: t('settings.parserEngine') },
-      { key: 'multimodal', icon: 'image', label: t('knowledgeEditor.sidebar.multimodal') },
-      { key: 'storage', icon: 'cloud', label: t('knowledgeEditor.sidebar.storage') },
       { key: 'chunking', icon: 'file-copy', label: t('knowledgeEditor.sidebar.chunking') },
+      { key: 'multimodal', icon: 'image', label: t('knowledgeEditor.sidebar.multimodal') },
+      { key: 'asr', icon: 'sound', label: t('knowledgeEditor.sidebar.asr') },
+      { key: 'graph', icon: 'fork', label: t('knowledgeEditor.sidebar.graph') },
+      { key: 'storage', icon: 'cloud', label: t('knowledgeEditor.sidebar.storage') },
       { key: 'advanced', icon: 'setting', label: t('knowledgeEditor.sidebar.advanced') }
     )
   }

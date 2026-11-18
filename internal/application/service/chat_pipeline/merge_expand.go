@@ -2,10 +2,36 @@ package chatpipeline
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Tencent/WeKnora/internal/searchutil"
+	"github.com/Tencent/WeKnora/internal/sourceloc"
 	"github.com/Tencent/WeKnora/internal/types"
 )
+
+// isLikelyTruncated checks whether a chunk's content appears to be cut off
+// mid-sentence, at a list boundary, or cross-page transition.
+func isLikelyTruncated(content string) bool {
+	trimmed := strings.TrimSpace(content)
+	if len(trimmed) == 0 {
+		return false
+	}
+	lastChar := trimmed[len(trimmed)-1]
+	if lastChar == ',' || lastChar == ';' || lastChar == ':' || lastChar == '-' || lastChar == '(' {
+		return true
+	}
+	lines := strings.Split(trimmed, "\n")
+	lastLine := strings.TrimSpace(lines[len(lines)-1])
+	if len(lastLine) <= 4 && len(lastLine) > 0 {
+		if lastLine[len(lastLine)-1] == '.' || lastLine[len(lastLine)-1] == ')' {
+			return true
+		}
+	}
+	if lastChar != '.' && lastChar != '?' && lastChar != '!' && lastChar != '"' && lastChar != '”' && lastChar != '}' && lastChar != ']' {
+		return true
+	}
+	return false
+}
 
 // expandShortContextWithNeighbors expands the short context with neighbors.
 //
@@ -19,8 +45,8 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 	results []*types.SearchResult,
 ) []*types.SearchResult {
 	const (
-		minLen = 350
-		maxLen = 850
+		minLen = 1200
+		maxLen = 3500
 	)
 
 	if len(results) == 0 || p.chunkRepo == nil {
@@ -38,10 +64,11 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 		if r == nil || r.ID == "" || r.Content == "" {
 			continue
 		}
-		if r.ChunkType != string(types.ChunkTypeText) {
+		if r.ChunkType != string(types.ChunkTypeText) && r.ChunkType != string(types.ChunkTypeImageOCR) {
 			continue
 		}
-		if runeLen(r.Content) >= minLen {
+		needsExpand := runeLen(r.Content) < minLen || isLikelyTruncated(r.Content) || r.ChunkType == string(types.ChunkTypeImageOCR)
+		if !needsExpand || runeLen(r.Content) >= maxLen {
 			continue
 		}
 		targets = append(targets, targetInfo{result: r})
@@ -119,7 +146,7 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 		res := target.result
 		p.fetchChunksIfMissing(ctx, chunkMap, res.ID)
 		baseChunk := chunkMap[res.ID]
-		if baseChunk == nil || baseChunk.Content == "" || baseChunk.ChunkType != types.ChunkTypeText {
+		if baseChunk == nil || baseChunk.Content == "" || (baseChunk.ChunkType != types.ChunkTypeText && baseChunk.ChunkType != types.ChunkTypeImageOCR) {
 			continue
 		}
 
@@ -153,13 +180,18 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			}
 		}
 
+		targetMinLen := minLen
+		if isLikelyTruncated(baseChunk.Content) || res.ChunkType == string(types.ChunkTypeImageOCR) {
+			targetMinLen = maxLen
+		}
+
 		var merged string
 		for {
 			merged = mergeOrderedContent(prevContent, baseChunk.Content, nextContent, maxLen)
 			if merged == "" {
 				break
 			}
-			if runeLen(merged) >= minLen {
+			if runeLen(merged) >= targetMinLen {
 				break
 			}
 			if prevCursor == "" && nextCursor == "" {
@@ -181,7 +213,7 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			}
 
 			merged = mergeOrderedContent(prevContent, baseChunk.Content, nextContent, maxLen)
-			if runeLen(merged) >= minLen {
+			if runeLen(merged) >= targetMinLen {
 				break
 			}
 
@@ -203,7 +235,7 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			}
 		}
 
-		if merged == "" {
+		if merged == "" || merged == baseChunk.Content {
 			continue
 		}
 
@@ -215,10 +247,16 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			if id != "" && !containsID(res.SubChunkID, id) {
 				res.SubChunkID = append(res.SubChunkID, id)
 			}
+			if c := chunkMap[id]; c != nil {
+				res.SourceLocators = sourceloc.MergeLocators(c.SourceLocators, res.SourceLocators)
+			}
 		}
 		for _, id := range nextIDs {
 			if id != "" && !containsID(res.SubChunkID, id) {
 				res.SubChunkID = append(res.SubChunkID, id)
+			}
+			if c := chunkMap[id]; c != nil {
+				res.SourceLocators = sourceloc.MergeLocators(res.SourceLocators, c.SourceLocators)
 			}
 		}
 

@@ -188,6 +188,40 @@ func (s *KnowledgePostProcessService) Handle(ctx context.Context, task *asynq.Ta
 		}
 	}
 
+	// Link adjacent OCR chunks by sequential order (ImageIndex / ChunkIndex)
+	// so that NextChunkID and PreChunkID form a continuous chain across pages.
+	var ocrChunks []*types.Chunk
+	for _, c := range chunks {
+		if c.ChunkType == types.ChunkTypeImageOCR {
+			ocrChunks = append(ocrChunks, c)
+		}
+	}
+	if len(ocrChunks) > 1 {
+		sort.Slice(ocrChunks, func(i, j int) bool {
+			return ocrChunks[i].ChunkIndex < ocrChunks[j].ChunkIndex
+		})
+		var toUpdate []*types.Chunk
+		for i := 0; i < len(ocrChunks); i++ {
+			var preID, nextID string
+			if i > 0 {
+				preID = ocrChunks[i-1].ID
+			}
+			if i < len(ocrChunks)-1 {
+				nextID = ocrChunks[i+1].ID
+			}
+			if ocrChunks[i].PreChunkID != preID || ocrChunks[i].NextChunkID != nextID {
+				ocrChunks[i].PreChunkID = preID
+				ocrChunks[i].NextChunkID = nextID
+				toUpdate = append(toUpdate, ocrChunks[i])
+			}
+		}
+		if len(toUpdate) > 0 {
+			if err := s.chunkRepo.SaveChunks(ctx, toUpdate); err != nil {
+				logger.Warnf(ctx, "[KnowledgePostProcess] Failed to link OCR chunks for %s: %v", payload.KnowledgeID, err)
+			}
+		}
+	}
+
 	// Gather all text-like chunks (including newly added OCR and Caption from multimodal tasks)
 	var textChunks []*types.Chunk
 	for _, c := range chunks {
@@ -221,23 +255,21 @@ func (s *KnowledgePostProcessService) Handle(ctx context.Context, task *asynq.Ta
 		kb.AutoTagConfig != nil && kb.AutoTagConfig.Enabled && len(textChunks) > 0
 	enqueuedAutoTag := false
 
-	// Question generation now fans out one subtask per plain text chunk
+	// Question generation now fans out one subtask per plain text and OCR chunk
 	// (mirroring the graph-extract per-chunk pattern) so each chunk's LLM
-	// call retries / cancels / traces independently. We only target
-	// ChunkTypeText here — OCR / Caption chunks were never fed to question
-	// generation in the legacy whole-knowledge loop, so excluding them
-	// keeps behavior identical. Link-only text chunks (scanned PDF pages)
-	// are skipped: the LLM has nothing to ask about and tends to echo the
-	// few-shot example. Sorted by StartAt so the per-chunk context
-	// (prev / next) matches the legacy ordering.
+	// call retries / cancels / traces independently. Scanned PDF pages with OCR
+	// are included so they benefit from question generation.
 	var questionChunks []*types.Chunk
 	if willSpawnQuestion {
 		for _, c := range textChunks {
-			if c.ChunkType == types.ChunkTypeText && chunkHasExtractableText(c.Content) {
+			if (c.ChunkType == types.ChunkTypeText || c.ChunkType == types.ChunkTypeImageOCR) && chunkHasExtractableText(c.Content) {
 				questionChunks = append(questionChunks, c)
 			}
 		}
 		sort.Slice(questionChunks, func(i, j int) bool {
+			if questionChunks[i].ChunkIndex != questionChunks[j].ChunkIndex {
+				return questionChunks[i].ChunkIndex < questionChunks[j].ChunkIndex
+			}
 			return questionChunks[i].StartAt < questionChunks[j].StartAt
 		})
 	}
