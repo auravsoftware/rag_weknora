@@ -1,0 +1,53 @@
+# Fast offline overlay build for WeKnora-app:
+# Compiles the local Go backend binary on Debian 12 (bookworm) and overlays it
+# onto the prebuilt wechatopenai/weknora-app runtime image, avoiding slow
+# Rust/BrowserSkill/apt rebuilds while preserving the exact runtime environment.
+
+ARG WEKNORA_VERSION=latest
+
+FROM golang:1.26-bookworm AS builder
+
+WORKDIR /app
+
+ARG GOPRIVATE_ARG
+ARG GOPROXY_ARG
+ARG GOSUMDB_ARG=off
+
+ENV GOPRIVATE=${GOPRIVATE_ARG}
+ENV GOPROXY=${GOPROXY_ARG}
+ENV GOSUMDB=${GOSUMDB_ARG}
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential libsqlite3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy go module manifests first to maximize Docker layer caching.
+COPY go.mod go.sum ./
+COPY third_party/anydoc-go/go.mod third_party/anydoc-go/go.mod
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY . .
+
+ARG VERSION_ARG
+ARG COMMIT_ID_ARG
+ARG BUILD_TIME_ARG
+
+ENV VERSION=${VERSION_ARG}
+ENV COMMIT_ID=${COMMIT_ID_ARG}
+ENV BUILD_TIME=${BUILD_TIME_ARG}
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    export GO_VERSION="$(go version)"; \
+    make build-prod
+
+RUN --mount=type=cache,target=/go/pkg/mod cp -r /go/pkg/mod/github.com/yanyiwu/ /app/yanyiwu/
+
+FROM wechatopenai/weknora-app:${WEKNORA_VERSION}
+
+WORKDIR /app
+
+COPY --from=builder /app/yanyiwu/ /go/pkg/mod/github.com/yanyiwu/
+COPY --from=builder /app/WeKnora /app/WeKnora
+COPY --from=builder /app/migrations /app/migrations
+RUN chmod +x /app/WeKnora

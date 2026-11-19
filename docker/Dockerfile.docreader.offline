@@ -1,0 +1,11 @@
+# Fast offline overlay build for WeKnora-docreader:
+# Overlays local Vietnamese parser customizations (NFC normalization + binary
+# Vector-vs-Scanned PDF classification) onto the prebuilt docreader runtime
+# image in <1 second without re-downloading LibreOffice/OpenJDK/Playwright.
+
+ARG WEKNORA_VERSION=latest
+FROM wechatopenai/weknora-docreader:${WEKNORA_VERSION}
+
+WORKDIR /app
+
+COPY docreader/parser/ /app/docreader/parser/

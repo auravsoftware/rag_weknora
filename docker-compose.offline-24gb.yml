@@ -48,9 +48,9 @@ services:
     image: weknora-app:offline-local
     build:
       context: .
-      dockerfile: docker/Dockerfile.app
+      dockerfile: docker/Dockerfile.app.offline
       args:
-        - WITH_ANYDOC=${WITH_ANYDOC:-0}
+        - WEKNORA_VERSION=${WEKNORA_VERSION:-latest}
     container_name: WeKnora-app
     ports:
       - "${APP_PORT:-7667}:8080"
@@ -115,7 +115,9 @@ services:
     image: weknora-docreader:offline-local
     build:
       context: .
-      dockerfile: docker/Dockerfile.docreader
+      dockerfile: docker/Dockerfile.docreader.offline
+      args:
+        - WEKNORA_VERSION=${WEKNORA_VERSION:-latest}
     container_name: WeKnora-docreader
     expose:
       - "50051"
