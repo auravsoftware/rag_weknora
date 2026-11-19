@@ -45,7 +45,12 @@ services:
     restart: unless-stopped
 
   app:
-    image: wechatopenai/weknora-app:${WEKNORA_VERSION:-latest}
+    image: weknora-app:offline-local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+      args:
+        - WITH_ANYDOC=${WITH_ANYDOC:-0}
     container_name: WeKnora-app
     ports:
       - "${APP_PORT:-7667}:8080"
@@ -107,7 +112,10 @@ services:
     restart: unless-stopped
 
   docreader:
-    image: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-latest}
+    image: weknora-docreader:offline-local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.docreader
     container_name: WeKnora-docreader
     expose:
       - "50051"
@@ -124,6 +132,7 @@ services:
       - DOCREADER_PDF_RENDER_DPI=${DOCREADER_PDF_RENDER_DPI:-200}
       - DOCREADER_PDF_JPEG_QUALITY=${DOCREADER_PDF_JPEG_QUALITY:-85}
       - DOCREADER_PDF_RENDER_MAX_EDGE=${DOCREADER_PDF_RENDER_MAX_EDGE:-2000}
+      - DOCREADER_PDF_VECTOR_MIN_RATIO=${DOCREADER_PDF_VECTOR_MIN_RATIO:-0.8}
       - DOCREADER_PDF_SANITIZE_TEXT=true
       - DOCREADER_PDF_STRIP_CHART_DEBRIS=true
       - DOCREADER_PDF_RENDER_VECTOR_FIGURES=true

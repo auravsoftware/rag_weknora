@@ -66,9 +66,10 @@ if not exist "models_cache\huggingface" mkdir "models_cache\huggingface"
 if not exist "data\files" mkdir "data\files"
 echo [✓] Đã tạo thư mục lưu trữ: models_cache\huggingface và data\files.
 
-REM 5. Khoi chay Docker Compose [kich hoat du 7/7 container]
-echo [+] Đang bung Docker Compose [kich hoat du 7/7 container]...
-docker compose -f docker-compose.offline-24gb.yml up -d frontend app docreader postgres redis vllm-qwen25-vl infinity-models
+REM 5. Khoi chay Docker Compose [build app + docreader tu ma nguon va kich hoat du 7/7 container]
+echo [+] Đang build app/docreader từ mã nguồn mới nhất và bung Docker Compose [7/7 container]...
+echo     (Lần đầu build image có thể mất vài phút; các lần sau Docker dùng cache chỉ mất vài giây)
+docker compose -f docker-compose.offline-24gb.yml up -d --build frontend app docreader postgres redis vllm-qwen25-vl infinity-models
 if errorlevel 1 goto COMPOSE_FAILED
 
 REM 6. Cho doi mo hinh AI vLLM hoan tat nap vao VRAM GPU
