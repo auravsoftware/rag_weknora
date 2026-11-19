@@ -153,9 +153,9 @@ func (h *ChunkHandler) ListKnowledgeChunks(c *gin.Context) {
 
 	// For scanned PDFs or image-placeholder chunks, populate child OCR text
 	// so the frontend chunk viewer renders real text instead of raw image tags.
-	if len(result.Data) > 0 {
+	if chunks, ok := result.Data.([]*types.Chunk); ok && len(chunks) > 0 {
 		var placeholderIDs []string
-		for _, chunk := range result.Data {
+		for _, chunk := range chunks {
 			if chunk != nil && chunk.ChunkType == types.ChunkTypeText && strings.TrimSpace(docparser.StripMarkdownImages(chunk.Content)) == "" {
 				placeholderIDs = append(placeholderIDs, chunk.ID)
 			}
@@ -168,7 +168,7 @@ func (h *ChunkHandler) ListKnowledgeChunks(c *gin.Context) {
 						ocrByParent[child.ParentChunkID] = child.Content
 					}
 				}
-				for _, chunk := range result.Data {
+				for _, chunk := range chunks {
 					if ocrText, ok := ocrByParent[chunk.ID]; ok && ocrText != "" {
 						chunk.Content = ocrText
 					}

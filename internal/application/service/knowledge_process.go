@@ -225,8 +225,9 @@ type ProcessChunksOptions struct {
 	// ParentChunks holds parent chunk data when parent-child chunking is enabled.
 	// When set, the chunks passed to processChunks are child chunks, and each
 	// child's ParentIndex references an entry in this slice.
-	ParentChunks []types.ParsedParentChunk
-	Metadata     map[string]string
+	ParentChunks               []types.ParsedParentChunk
+	Metadata                   map[string]string
+	MultimodalAlreadyCompleted bool
 }
 
 func imagesForMultimodal(images []docparser.StoredImage) []docparser.StoredImage {
@@ -931,7 +932,9 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 			return err
 		}
 	} else {
-		s.skipStage(ctx, knowledge.ID, types.StageMultimodal, "skipped")
+		if !options.MultimodalAlreadyCompleted {
+			s.skipStage(ctx, knowledge.ID, types.StageMultimodal, "skipped")
+		}
 		// If there are no multimodal tasks, enqueue the post process task immediately
 		if err := s.enqueueKnowledgePostProcessTask(ctx, knowledge); err != nil {
 			return err
@@ -4218,6 +4221,15 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 		convertResult.AudioData = nil
 	}
 
+	// Step 1.75: OCR-First & Whole-Doc assembly for scanned PDFs.
+	// OCR all page images upfront into one continuous Markdown document with
+	// <!-- Page N --> markers and exact PDF SourceBlocks before chunking so
+	// cross-page clauses stay intact within a single chunk.
+	scannedPDFOCRApplied, ocrErr := s.ocrScannedPDFDocument(ctx, kb, knowledge, eff, convertResult)
+	if ocrErr != nil {
+		return ocrErr
+	}
+
 	// Normalize inline HTML tables from any parser engine (MinerU, builtin,
 	// markitdown, paddleocr-vl, ...) into GFM, or row-newline-separated HTML
 	// for merged / non-GFM tables, so the chunker can split them.
@@ -4330,10 +4342,11 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 
 	multimodalImages := imagesForMultimodal(storedImages)
 	processOpts := ProcessChunksOptions{
-		EnableQuestionGeneration: payload.EnableQuestionGeneration,
-		QuestionCount:            payload.QuestionCount,
-		EnableMultimodel:         payload.EnableMultimodel,
-		StoredImages:             multimodalImages,
+		EnableQuestionGeneration:   payload.EnableQuestionGeneration,
+		QuestionCount:              payload.QuestionCount,
+		EnableMultimodel:           payload.EnableMultimodel,
+		StoredImages:               multimodalImages,
+		MultimodalAlreadyCompleted: scannedPDFOCRApplied,
 	}
 
 	if convertResult != nil {
@@ -4371,7 +4384,7 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 		isScannedPDF := convertResult != nil && convertResult.Metadata["image_source_type"] == "scanned_pdf"
 		for i, c := range splitChunks {
 			locs := sourceIndex.Locators(c.Start, c.End)
-			if (len(locs) == 0 || isScannedPDF) && i < len(storedImages) {
+			if !scannedPDFOCRApplied && (len(locs) == 0 || isScannedPDF) && i < len(storedImages) {
 				locs = types.SourceLocators{{
 					Type:    "pdf",
 					Page:    i + 1,

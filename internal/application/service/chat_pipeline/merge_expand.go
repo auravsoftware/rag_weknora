@@ -3,6 +3,7 @@ package chatpipeline
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Tencent/WeKnora/internal/searchutil"
 	"github.com/Tencent/WeKnora/internal/sourceloc"
@@ -16,8 +17,8 @@ func isLikelyTruncated(content string) bool {
 	if len(trimmed) == 0 {
 		return false
 	}
-	lastChar := trimmed[len(trimmed)-1]
-	if lastChar == ',' || lastChar == ';' || lastChar == ':' || lastChar == '-' || lastChar == '(' {
+	lastRune, _ := utf8.DecodeLastRuneInString(trimmed)
+	if lastRune == ',' || lastRune == ';' || lastRune == ':' || lastRune == '-' || lastRune == '(' {
 		return true
 	}
 	lines := strings.Split(trimmed, "\n")
@@ -27,7 +28,7 @@ func isLikelyTruncated(content string) bool {
 			return true
 		}
 	}
-	if lastChar != '.' && lastChar != '?' && lastChar != '!' && lastChar != '"' && lastChar != '”' && lastChar != '}' && lastChar != ']' {
+	if lastRune != '.' && lastRune != '?' && lastRune != '!' && lastRune != '"' && lastRune != '”' && lastRune != '}' && lastRune != ']' {
 		return true
 	}
 	return false
