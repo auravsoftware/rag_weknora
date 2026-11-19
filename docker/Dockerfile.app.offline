@@ -1,7 +1,8 @@
-# Fast offline overlay build for WeKnora-app:
-# Compiles the local Go backend binary on Debian 12 (bookworm) and overlays it
-# onto the prebuilt wechatopenai/weknora-app runtime image, avoiding slow
-# Rust/BrowserSkill/apt rebuilds while preserving the exact runtime environment.
+# Fast, low-memory offline overlay build for WeKnora-app:
+# Compiles the local Go backend binary on Debian 12 (bookworm) with bounded
+# parallelism (-p 2, GOMAXPROCS=2) so CGO compilation never exhausts WSL2
+# Docker Desktop RAM or /tmp disk space, then overlays /app/WeKnora onto the
+# prebuilt wechatopenai/weknora-app runtime image.
 
 ARG WEKNORA_VERSION=latest
 
@@ -18,7 +19,7 @@ ENV GOPROXY=${GOPROXY_ARG}
 ENV GOSUMDB=${GOSUMDB_ARG}
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential libsqlite3-dev && \
+    apt-get install -y --no-install-recommends libsqlite3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy go module manifests first to maximize Docker layer caching.
@@ -32,22 +33,24 @@ ARG VERSION_ARG
 ARG COMMIT_ID_ARG
 ARG BUILD_TIME_ARG
 
-ENV VERSION=${VERSION_ARG}
-ENV COMMIT_ID=${COMMIT_ID_ARG}
-ENV BUILD_TIME=${BUILD_TIME_ARG}
-
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    export GO_VERSION="$(go version)"; \
-    make build-prod
-
-RUN --mount=type=cache,target=/go/pkg/mod cp -r /go/pkg/mod/github.com/yanyiwu/ /app/yanyiwu/
+    VERSION="${VERSION_ARG:-$(cat VERSION 2>/dev/null || echo unknown)}" && \
+    COMMIT_ID="${COMMIT_ID_ARG:-unknown}" && \
+    BUILD_TIME="${BUILD_TIME_ARG:-unknown}" && \
+    GO_VERSION="$(go version)" && \
+    LDFLAGS="-X 'github.com/Tencent/WeKnora/internal/handler.Version=${VERSION}' -X 'github.com/Tencent/WeKnora/internal/handler.Edition=standard' -X 'github.com/Tencent/WeKnora/internal/handler.CommitID=${COMMIT_ID}' -X 'github.com/Tencent/WeKnora/internal/handler.BuildTime=${BUILD_TIME}' -X 'github.com/Tencent/WeKnora/internal/handler.GoVersion=${GO_VERSION}' -X 'google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'" && \
+    CGO_ENABLED=1 \
+    CGO_CFLAGS="-Wno-deprecated-declarations" \
+    GOMAXPROCS=2 \
+    GOGC=50 \
+    go build -p 2 -ldflags="-w -s ${LDFLAGS}" -o /app/WeKnora ./cmd/server && \
+    rm -rf /tmp/go-build*
 
 FROM wechatopenai/weknora-app:${WEKNORA_VERSION}
 
 WORKDIR /app
 
-COPY --from=builder /app/yanyiwu/ /go/pkg/mod/github.com/yanyiwu/
 COPY --from=builder /app/WeKnora /app/WeKnora
 COPY --from=builder /app/migrations /app/migrations
 RUN chmod +x /app/WeKnora

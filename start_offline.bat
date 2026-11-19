@@ -103,6 +103,12 @@ echo ===========================================================================
 echo    [X] LỖI: QUÁ TRÌNH KHỞI CHẠY CONTAINER THẤT BẠI!
 echo ================================================================================
 echo    Vui lòng kiểm tra lại log báo lỗi ở trên.
+echo.
+echo    Nếu thấy lỗi "read-only file system" hoặc "rpc error ... EOF" (WSL2 đầy ổ đĩa/RAM):
+echo      1. Mở Docker Desktop -^> bấm Restart (khởi động lại Docker Engine).
+echo      2. Mở PowerShell/CMD chạy: docker builder prune -a -f
+echo      3. Kiểm tra ổ đĩa chứa Docker (C:\) còn trống ít nhất 15 GB.
+echo      4. Chạy lại file start_offline.bat này.
 echo ================================================================================
 pause
 exit /b 1
