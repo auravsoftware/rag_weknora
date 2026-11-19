@@ -192,17 +192,107 @@ def _normalize_image_quality(quality: int) -> int:
     return min(95, max(1, quality))
 
 
-def _classify_page(image_area_ratio: float, text_len: int) -> str:
-    """Classify a page as ``"scanned"`` or ``"text"``.
+# Minimum share of non-blank pages that must be verified as genuine vector text
+# pages for a PDF to be treated as a native vector PDF. Anything below this
+# threshold is classified as a scanned PDF at the document level and routed
+# wholly to VLM OCR-First chunking.
+VECTOR_PDF_MIN_RATIO = _env_float("DOCREADER_PDF_VECTOR_MIN_RATIO", 0.8)
 
-    Image-area coverage is the primary signal; a sparse text layer combined with
-    some image content is the secondary signal.
+
+def _classify_page(
+    image_area_ratio: float,
+    text_len: int,
+    *,
+    visible_text_objs: int | None = None,
+    invisible_text_objs: int | None = None,
+) -> str:
+    """Classify a page as ``"scanned"`` or ``"text"`` (verified vector text).
+
+    A page is only classified as ``"text"`` when it is verified to be a genuine
+    vector-text page:
+      1. Bitmap images do not cover >= SCAN_IMAGE_AREA_RATIO of the page.
+      2. Text objects are not dominated by invisible (render-mode 3) OCR
+         overlays produced by scanner software (sandwich PDFs).
+      3. It does not fall into the sparse-text + image-bearing scan bucket.
     """
     if image_area_ratio >= SCAN_IMAGE_AREA_RATIO:
+        return "scanned"
+    # Sandwich PDFs produced by scanners embed an invisible (render-mode 3)
+    # OCR text layer over a scanned bitmap. Even if the bitmap is cropped below
+    # SCAN_IMAGE_AREA_RATIO, invisible-only/dominated text on an image page is
+    # a scanned page, never a native vector page.
+    if (
+        invisible_text_objs is not None
+        and invisible_text_objs > 0
+        and (visible_text_objs is None or visible_text_objs <= invisible_text_objs)
+        and image_area_ratio >= _LOW_TEXT_IMAGE_RATIO
+    ):
         return "scanned"
     if text_len < SCAN_MIN_CHARS_PER_PAGE and image_area_ratio >= _LOW_TEXT_IMAGE_RATIO:
         return "scanned"
     return "text"
+
+
+def _is_vector_pdf_document(classes: list[str], text_lens: list[int]) -> bool:
+    """Confirm whether a PDF is a genuine native vector PDF as a whole.
+
+    If the document cannot be confirmed as a vector PDF (e.g. scanned pages
+    account for more than ``1 - VECTOR_PDF_MIN_RATIO`` of content-bearing
+    pages, or there are no genuine vector text pages), it defaults to
+    ``scanned`` so every page goes cleanly through VLM OCR-First & Whole-Doc
+    chunking instead of mixing garbled scanner OCR text with page images.
+    """
+    if not classes:
+        return False
+    scanned_count = 0
+    vector_content_pages = 0
+    for cls, tlen in zip(classes, text_lens):
+        if cls == "scanned":
+            scanned_count += 1
+        elif tlen >= SCAN_MIN_CHARS_PER_PAGE:
+            vector_content_pages += 1
+
+    if scanned_count == 0:
+        return True
+    if vector_content_pages == 0:
+        return False
+    active_pages = vector_content_pages + scanned_count
+    return (vector_content_pages / active_pages) >= VECTOR_PDF_MIN_RATIO
+
+
+def _page_vector_metrics(page, raw) -> tuple[float, int, int]:
+    """Return ``(image_area_ratio, visible_text_objs, invisible_text_objs)``.
+
+    Inspecting image coverage and text render mode in a single pass lets us
+    distinguish genuine native vector PDFs from scanned sandwich PDFs that
+    carry an invisible (render-mode 3) scanner OCR layer.
+    """
+    width, height = page.get_size()
+    page_area = float(width) * float(height)
+    image_area = 0.0
+    visible_text_objs = 0
+    invisible_text_objs = 0
+
+    for obj in page.get_objects():
+        try:
+            obj_type = obj.type
+            if obj_type == raw.FPDF_PAGEOBJ_IMAGE:
+                left, bottom, right, top = obj.get_bounds()
+                image_area += abs((right - left) * (top - bottom))
+            elif obj_type == raw.FPDF_PAGEOBJ_TEXT:
+                try:
+                    mode = raw.FPDFTextObj_GetTextRenderMode(obj.raw)
+                except Exception:
+                    mode = None
+                if mode == raw.FPDF_TEXTRENDERMODE_INVISIBLE:
+                    invisible_text_objs += 1
+                else:
+                    visible_text_objs += 1
+        except Exception:
+            continue
+
+    ratio = (image_area / page_area) if page_area > 0 else 0.0
+    return ratio, visible_text_objs, invisible_text_objs
 
 
 def _page_image_area_ratio(page, raw) -> float:
@@ -211,20 +301,8 @@ def _page_image_area_ratio(page, raw) -> float:
     Overlapping images can push the ratio above 1.0; callers only compare it
     against a threshold so that is harmless.
     """
-    width, height = page.get_size()
-    page_area = float(width) * float(height)
-    if page_area <= 0:
-        return 0.0
-
-    image_area = 0.0
-    for obj in page.get_objects():
-        try:
-            if obj.type == raw.FPDF_PAGEOBJ_IMAGE:
-                left, bottom, right, top = obj.get_bounds()
-                image_area += abs((right - left) * (top - bottom))
-        except Exception:
-            continue
-    return image_area / page_area
+    ratio, _, _ = _page_vector_metrics(page, raw)
+    return ratio
 
 
 def _extract_page_text(page) -> str:
@@ -2111,6 +2189,7 @@ class PDFScannedParser(BaseParser):
                 images=images,
                 metadata={
                     "image_source_type": "scanned_pdf",
+                    "pdf_classification": "scanned",
                     "page_count": page_count,
                 },
                 source_blocks=source_blocks,
@@ -2152,7 +2231,11 @@ class PDFScannedParser(BaseParser):
 
         document = Document(
             content="\n\n".join(markdown_lines),
-            metadata={"image_source_type": "scanned_pdf", "page_count": page_count},
+            metadata={
+                "image_source_type": "scanned_pdf",
+                "pdf_classification": "scanned",
+                "page_count": page_count,
+            },
             source_blocks=source_blocks,
         )
         image_count = page_count
@@ -2324,9 +2407,10 @@ class PDFParser(BaseParser):
         try:
             page_count = len(pdf)
 
-            # Pass 1: cheap text extraction + image-area classification.
+            # Pass 1: cheap text extraction + vector vs scanned classification.
             texts: list = []
             classes: list = []
+            text_lens: list[int] = []
             vector_clips: dict = {}
             line_boxes: dict = {}
             geometries: dict = {}
@@ -2335,8 +2419,16 @@ class PDFParser(BaseParser):
                 try:
                     geometries[i] = _page_geometry(page)
                     plain = _extract_page_text(page)
-                    ratio = _page_image_area_ratio(page, pdfium_r)
-                    cls = _classify_page(ratio, len(plain.strip()))
+                    plain_len = len(plain.strip())
+                    ratio, visible_objs, invisible_objs = _page_vector_metrics(
+                        page, pdfium_r
+                    )
+                    cls = _classify_page(
+                        ratio,
+                        plain_len,
+                        visible_text_objs=visible_objs,
+                        invisible_text_objs=invisible_objs,
+                    )
                     # Layout reconstruction only pays off (and is only spent) on
                     # native text pages; scanned pages are rendered, not read.
                     if cls == "text" and LAYOUT_ORDERING:
@@ -2389,8 +2481,31 @@ class PDFParser(BaseParser):
                     _close_pdfium_resource(page)
                 texts.append(text)
                 classes.append(cls)
+                text_lens.append(len(text.strip()))
 
-            texts = _strip_repeating_lines(texts, classes)
+            # Document-level binary check: confirm whether this file is a
+            # genuine native vector PDF. If not confirmed, default the entire
+            # document to scanned_pdf so all pages go cleanly through VLM
+            # OCR-First & Whole-Doc chunking without mixing garbled scanner OCR
+            # text layers into the output.
+            is_vector_pdf = _is_vector_pdf_document(classes, text_lens)
+            if not is_vector_pdf and page_count > 0:
+                initial_scanned = sum(1 for c in classes if c == "scanned")
+                logger.info(
+                    "PDFParser: %s not verified as vector PDF (%d/%d pages scanned); "
+                    "promoting entire document to scanned_pdf",
+                    self.file_name,
+                    initial_scanned,
+                    page_count,
+                )
+                classes = ["scanned"] * page_count
+                texts = [""] * page_count
+                vector_clips = {}
+                line_boxes = {}
+                images = {}
+            else:
+                texts = _strip_repeating_lines(texts, classes)
+
             scanned_indices = [i for i, c in enumerate(classes) if c == "scanned"]
 
             # Pass 2: render only the scanned pages (heavy work, rate-limited).
@@ -2412,7 +2527,7 @@ class PDFParser(BaseParser):
             # Pass 3: extract embedded figures from native text pages so the Go
             # App can OCR/caption them (logos/watermarks/tiny images filtered).
             embedded: dict = {}
-            if EXTRACT_EMBEDDED_IMAGES:
+            if EXTRACT_EMBEDDED_IMAGES and is_vector_pdf:
                 embedded = _extract_embedded_images(
                     pdf, classes, pdfium_r, base_name, quality
                 )
@@ -2482,12 +2597,14 @@ class PDFParser(BaseParser):
         # the recorded offsets stay exact.
         content_text = "\n\n".join(blocks)
 
+        pdf_classification = "vector" if is_vector_pdf else "scanned"
         metadata = {
             "page_count": page_count,
             "scanned_page_count": len(scanned_indices),
             "text_page_count": page_count - len(scanned_indices),
             "embedded_image_count": embedded_count,
             "vector_figure_count": vector_figure_count,
+            "pdf_classification": pdf_classification,
             "image_source_type": "scanned_pdf" if scanned_indices else "pdf_text_layer",
             "image_source_types": json.dumps(image_source_types, ensure_ascii=False),
         }

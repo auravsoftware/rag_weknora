@@ -124,6 +124,43 @@ func TestShouldUseScannedPDFOCRFirst(t *testing.T) {
 		}
 		assert.False(t, shouldUseScannedPDFOCRFirst(res))
 	})
+
+	t.Run("explicit pdf_classification=scanned always qualifies", func(t *testing.T) {
+		res := &types.ReadResult{
+			MarkdownContent: strings.Repeat("cho IlQnh viQn tla khoa Phu'ong Ddng ", 20) + "\n![page 1](images/page_1.jpg)",
+			ImageRefs:       []types.ImageRef{{OriginalRef: "images/page_1.jpg", ImageData: []byte("img1")}},
+			Metadata: map[string]string{
+				"image_source_type":  "scanned_pdf",
+				"pdf_classification": "scanned",
+			},
+		}
+		assert.True(t, shouldUseScannedPDFOCRFirst(res))
+	})
+
+	t.Run("explicit pdf_classification=vector does not qualify", func(t *testing.T) {
+		res := &types.ReadResult{
+			MarkdownContent: "![fig 1](images/fig_1.jpg)",
+			ImageRefs:       []types.ImageRef{{OriginalRef: "images/fig_1.jpg", ImageData: []byte("img1")}},
+			Metadata: map[string]string{
+				"image_source_type":  "scanned_pdf",
+				"pdf_classification": "vector",
+			},
+		}
+		assert.False(t, shouldUseScannedPDFOCRFirst(res))
+	})
+
+	t.Run("majority scanned pages without pdf_classification qualifies", func(t *testing.T) {
+		res := &types.ReadResult{
+			MarkdownContent: strings.Repeat("garbled scanner text ", 20) + "\n![page 1](images/page_1.jpg)",
+			ImageRefs:       []types.ImageRef{{OriginalRef: "images/page_1.jpg", ImageData: []byte("img1")}},
+			Metadata: map[string]string{
+				"image_source_type":  "scanned_pdf",
+				"page_count":         "97",
+				"scanned_page_count": "95",
+			},
+		}
+		assert.True(t, shouldUseScannedPDFOCRFirst(res))
+	})
 }
 
 func TestOrderedScannedPDFPageImages(t *testing.T) {

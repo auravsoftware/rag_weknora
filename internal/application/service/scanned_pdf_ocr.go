@@ -39,19 +39,55 @@ type scannedPDFPage struct {
 // whose page images should be OCR'd up front and merged into a single Markdown
 // document before chunking (OCR-First & Whole-Doc Chunking).
 //
-// Mixed PDFs that already carry a real text layer (>= 200 non-image runes) or
-// native non-scanned figures are left on the standard path so existing text is
-// never discarded.
+// Decision rules (vector-verified vs default-scanned):
+//  1. If DocReader explicitly verified the PDF as non-vector
+//     (metadata["pdf_classification"] == "scanned"), always run OCR-First
+//     whenever inline page image bytes are present.
+//  2. If DocReader explicitly verified the PDF as a genuine vector PDF
+//     (metadata["pdf_classification"] == "vector"), keep its native text layer.
+//  3. For older parsers without pdf_classification: if image_source_type is
+//     "scanned_pdf" and either the majority of pages are scanned
+//     (scanned_page_count/page_count >= 50%) or the extracted non-image text is
+//     below 200 runes with no native pdf_text_layer images, run OCR-First.
 func shouldUseScannedPDFOCRFirst(result *types.ReadResult) bool {
-	if result == nil || result.Metadata == nil {
+	if result == nil || result.Metadata == nil || len(result.ImageRefs) == 0 {
 		return false
 	}
+
+	hasInlineImage := false
+	for _, ref := range result.ImageRefs {
+		if len(ref.ImageData) > 0 {
+			hasInlineImage = true
+			break
+		}
+	}
+	if !hasInlineImage {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(result.Metadata["pdf_classification"])) {
+	case "scanned":
+		return true
+	case "vector":
+		return false
+	}
+
 	if result.Metadata["image_source_type"] != "scanned_pdf" {
 		return false
 	}
-	if len(result.ImageRefs) == 0 {
-		return false
+
+	// Backward compatibility for parsers that emit scanned_page_count /
+	// page_count without pdf_classification: when scanned pages are not a
+	// small minority, treat the document as scanned rather than falling back
+	// to per-image chunking.
+	if scannedPages, err1 := strconv.Atoi(strings.TrimSpace(result.Metadata["scanned_page_count"])); err1 == nil && scannedPages > 0 {
+		if totalPages, err2 := strconv.Atoi(strings.TrimSpace(result.Metadata["page_count"])); err2 == nil && totalPages > 0 {
+			if scannedPages*100 >= totalPages*50 {
+				return true
+			}
+		}
 	}
+
 	if approxTextContentRunes(result.MarkdownContent) >= temporaryDocumentLowTextRunes {
 		return false
 	}
@@ -63,19 +99,17 @@ func shouldUseScannedPDFOCRFirst(result *types.ReadResult) bool {
 		}
 	}
 
-	hasInlineImage := false
 	for _, ref := range result.ImageRefs {
 		if len(ref.ImageData) == 0 {
 			continue
 		}
-		hasInlineImage = true
 		if len(imageSourceTypes) > 0 {
 			if src := imageSourceTypes[ref.OriginalRef]; src != "" && src != "scanned_pdf" {
 				return false
 			}
 		}
 	}
-	return hasInlineImage
+	return true
 }
 
 // orderedScannedPDFPageImages extracts page images with inline bytes in their
@@ -215,6 +249,15 @@ func (s *knowledgeService) ocrScannedPDFDocument(
 	result *types.ReadResult,
 ) (bool, error) {
 	if !shouldUseScannedPDFOCRFirst(result) {
+		if result != nil && result.Metadata != nil && result.Metadata["image_source_type"] == "scanned_pdf" {
+			logger.Infof(ctx,
+				"[ScannedPDFOCR] Skipped OCR-First for knowledge %s: pdf_classification=%q image_refs=%d text_runes=%d",
+				knowledge.ID,
+				result.Metadata["pdf_classification"],
+				len(result.ImageRefs),
+				approxTextContentRunes(result.MarkdownContent),
+			)
+		}
 		return false, nil
 	}
 
