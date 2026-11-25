@@ -183,3 +183,61 @@ func TestExpandShortContextWithNeighbors_ParentResolvedListContinuation(t *testi
 		t.Fatalf("expected trailing summary paragraph from parent2 to be included")
 	}
 }
+
+func TestExpandShortContextWithNeighbors_MergedSegments3And4PullsSegment5(t *testing.T) {
+	seg3 := "Mục I\nNHỮNG QUY ĐỊNH CHUNG\n\nPhạm vi điều chỉnh, đối tượng áp dụng\n" +
+		"1.1. Phạm vi điều chỉnh Văn bản này hướng dẫn nghiệp vụ cho vay ưu đãi để mua, thuê mua nhà ở xã hội, nhà ở cho lực lượng vũ trang nhân dân; xây dựng hoặc cải tạo, sửa chữa nhà ở theo quy định của Luật Nhà ở, Nghị định số 100/2024/NĐ-CP ngày 26 tháng 7 năm 2024 của Chính phủ quy định chi tiết một số điều của Luật Nhà ở về phát triển và quản lý nhà ở xã hội.\n" +
+		"1.2. Đối tượng áp dụng\n\na) Đối tượng vay vốn được quy định tại khoản 2 văn bản này.\n\nb) Đơn vị, cá nhân thuộc NHCSXH.\n\nc) Các tổ chức, cá nhân có liên quan.\n\n" +
+		"Đối tượng vay vốn\n" +
+		"2.1. Người có công với cách mạng, thân nhân liệt sĩ thuộc trường hợp được hỗ trợ cải thiện nhà ở theo quy định của Pháp lệnh Ưu đãi người có công với cách mạng.\n\n" +
+		"2.2. Hộ gia đình nghèo, cận nghèo tại khu vực nông thôn.\n\n" +
+		"2.3. Hộ gia đình nghèo, cận nghèo tại khu vực nông thôn thuộc vùng thường xuyên bị ảnh hưởng bởi thiên tai, biến đổi khí hậu."
+
+	seg4 := "2.3. Hộ gia đình nghèo, cận nghèo tại khu vực nông thôn thuộc vùng thường xuyên bị ảnh hưởng bởi thiên tai, biến đổi khí hậu.\n\n" +
+		"2.4. Hộ gia đình nghèo, cận nghèo tại khu vực đô thị.\n\n" +
+		"2.5. Người thu nhập thấp tại khu vực đô thị.\n\n" +
+		"2.6. Công nhân, người lao động đang làm việc tại doanh nghiệp, hợp tác xã, liên hiệp hợp tác xã trong và ngoài khu công nghiệp.\n\n" +
+		"2.7. Sĩ quan, quân nhân chuyên nghiệp, hạ sĩ quan thuộc lực lượng vũ trang nhân dân, công nhân công an, công chức, công nhân và viên chức quốc phòng đang phục vụ tại ngũ; người làm công tác cơ yếu, người làm công tác khác trong tổ chức cơ yếu hưởng lương từ ngân sách nhà nước đang công tác."
+
+	seg5 := "2.7. Sĩ quan, quân nhân chuyên nghiệp, hạ sĩ quan thuộc lực lượng vũ trang nhân dân, công nhân công an, công chức, công nhân và viên chức quốc phòng đang phục vụ tại ngũ; người làm công tác cơ yếu, người làm công tác khác trong tổ chức cơ yếu hưởng lương từ ngân sách nhà nước đang công tác.\n\n" +
+		"2.8. Cán bộ, công chức, viên chức theo quy định của pháp luật về cán bộ, công chức, viên chức.\n\n" +
+		"Các đối tượng được vay vốn nêu trên sau đây gọi chung là khách hàng. Khách hàng thuộc đối tượng quy định tại điểm 2.7 khoản 2 văn bản này vay vốn để mua, thuê mua nhà ở xã hội.\n\n" +
+		"Nguyên tắc vay vốn\n3.1. Khách hàng phải đúng đối tượng được vay và đáp ứng đầy đủ các điều kiện vay vốn theo quy định."
+
+	repo := &expandChunkRepo{
+		chunks: map[string]*types.Chunk{
+			"seg-3": {ID: "seg-3", KnowledgeID: "k1", ChunkType: types.ChunkTypeText, ChunkIndex: 3, Content: seg3, NextChunkID: "seg-4"},
+			"seg-4": {ID: "seg-4", KnowledgeID: "k1", ChunkType: types.ChunkTypeText, ChunkIndex: 4, Content: seg4, PreChunkID: "seg-3", NextChunkID: "seg-5"},
+			"seg-5": {ID: "seg-5", KnowledgeID: "k1", ChunkType: types.ChunkTypeText, ChunkIndex: 5, Content: seg5, PreChunkID: "seg-4"},
+		},
+	}
+
+	plugin := &PluginMerge{chunkRepo: repo}
+
+	// Step 5: both seg-3 and seg-4 hit by retrieval and merged sequentially into one SearchResult.
+	merged := plugin.mergeSequentialChunks(context.Background(), "k1", []*types.SearchResult{
+		{ID: "seg-3", KnowledgeID: "k1", ChunkType: string(types.ChunkTypeText), ChunkIndex: 3, Content: seg3, Score: 0.9},
+		{ID: "seg-4", KnowledgeID: "k1", ChunkType: string(types.ChunkTypeText), ChunkIndex: 4, Content: seg4, Score: 0.85},
+	})
+	if len(merged) != 1 {
+		t.Fatalf("expected seg-3 and seg-4 to merge into 1 result, got %d", len(merged))
+	}
+
+	// Step 7: expandShortContextWithNeighbors must skip already-merged seg-4,
+	// advance nextCursor to seg-5, detect 2.7 -> 2.8, and append seg-5.
+	expanded := plugin.expandShortContextWithNeighbors(context.Background(), merged)
+	if len(expanded) != 1 {
+		t.Fatalf("expected 1 expanded result, got %d", len(expanded))
+	}
+	for _, want := range []string{
+		"2.1. Người có công với cách mạng",
+		"2.4. Hộ gia đình nghèo, cận nghèo tại khu vực đô thị.",
+		"2.7. Sĩ quan, quân nhân chuyên nghiệp",
+		"2.8. Cán bộ, công chức, viên chức",
+		"Các đối tượng được vay vốn nêu trên sau đây gọi chung là khách hàng.",
+	} {
+		if !strings.Contains(expanded[0].Content, want) {
+			t.Fatalf("expected expanded content to contain %q", want)
+		}
+	}
+}

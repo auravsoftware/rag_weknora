@@ -368,16 +368,16 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 		}
 
 		// When resolveParentChunks (step 4) or sequential merge (step 5) already
-		// expanded res.Content from fresh DB chunks, preserve that rewritten body
-		// instead of reverting to the smaller child baseChunk.Content, and walk
-		// the parent's PreChunkID/NextChunkID chain rather than sibling children
-		// already contained inside the parent.
+		// expanded res.Content from fresh DB chunks, preserve that rewritten/merged
+		// body instead of reverting to the smaller child baseChunk.Content, and
+		// walk past any sibling/merged chunks already contained in res.Content.
+		hasMergedSubChunks := len(res.SubChunkID) > 0
 		baseContent := baseChunk.Content
 		prevCursor := baseChunk.PreChunkID
 		nextCursor := baseChunk.NextChunkID
-		if res.ContentRewritten && res.Content != "" {
+		if (res.ContentRewritten || hasMergedSubChunks) && res.Content != "" {
 			baseContent = res.Content
-			if baseChunk.ParentChunkID != "" {
+			if res.ContentRewritten && baseChunk.ParentChunkID != "" {
 				p.fetchChunksIfMissing(ctx, chunkMap, baseChunk.ParentChunkID)
 				if parentChunk := chunkMap[baseChunk.ParentChunkID]; parentChunk != nil &&
 					parentChunk.ChunkType == types.ChunkTypeParentText {
@@ -393,6 +393,33 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 				}
 				if nextCursor == "" {
 					nextCursor = parentChunk.NextChunkID
+				}
+			}
+		}
+
+		// If Step 5 (mergeSequentialChunks) already merged e.g. Segment 3 + Segment 4
+		// into res (res.ID=seg3, res.SubChunkID=[seg4]), seg3.NextChunkID still points
+		// to seg4. Advance nextCursor/prevCursor past any ID already merged into res
+		// so we inspect the true next unmerged neighbor (seg5).
+		if hasMergedSubChunks {
+			visitedNext := map[string]bool{res.ID: true}
+			for nextCursor != "" && containsID(res.SubChunkID, nextCursor) && !visitedNext[nextCursor] {
+				visitedNext[nextCursor] = true
+				p.fetchChunksIfMissing(ctx, chunkMap, nextCursor)
+				if c := chunkMap[nextCursor]; c != nil {
+					nextCursor = c.NextChunkID
+				} else {
+					nextCursor = ""
+				}
+			}
+			visitedPrev := map[string]bool{res.ID: true}
+			for prevCursor != "" && containsID(res.SubChunkID, prevCursor) && !visitedPrev[prevCursor] {
+				visitedPrev[prevCursor] = true
+				p.fetchChunksIfMissing(ctx, chunkMap, prevCursor)
+				if c := chunkMap[prevCursor]; c != nil {
+					prevCursor = c.PreChunkID
+				} else {
+					prevCursor = ""
 				}
 			}
 		}
