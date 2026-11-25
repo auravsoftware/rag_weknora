@@ -123,6 +123,13 @@ const kbViewTabs = computed(() => {
   const tabs: Array<{ key: KbTab; icon: string; label: string; tip: string; indexing?: boolean }> = [
     { key: 'documents', icon: 'file', label: t(`${w}.tabDocuments`), tip: t(`${w}.tabDocumentsTip`) },
   ]
+  if (isWiki.value) {
+    const indexing = wikiIsIndexing.value
+    tabs.push(
+      { key: 'wiki', icon: 'book-open', label: 'Wiki', tip: indexing ? wikiIndexingTip.value : t(`${w}.tabWikiTip`), indexing },
+      { key: 'graph', icon: 'relation', label: t(`${w}.tabGraph`), tip: indexing ? wikiIndexingTip.value : t(`${w}.tabGraphTip`), indexing },
+    )
+  }
   return tabs
 })
 const shownKbTab = computed<KbTab>(() =>

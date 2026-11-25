@@ -2706,6 +2706,14 @@ func isLengthStopFinishReason(reason string) bool {
 // stops the model mid-table. Before this, the fragment was persisted verbatim:
 // a 146-row source table became a 119-row page, the page history showed an
 // ordinary edit, and nothing in the logs said "truncated".
+// resolvedWikiLLMMaxTokens returns the completion token budget for wiki LLM calls.
+// Defaults to wikiLLMMaxTokens (32768) for cloud providers, and honors
+// WIKI_LLM_MAX_TOKENS (e.g. 4096) for local vLLM deployments with smaller
+// max_model_len windows (such as 24576 on a 24GB GPU).
+func resolvedWikiLLMMaxTokens() int {
+	return envPositiveInt("WIKI_LLM_MAX_TOKENS", wikiLLMMaxTokens)
+}
+
 func (s *wikiIngestService) generateWithTemplateResult(
 	ctx context.Context,
 	chatModel chat.Chat,
@@ -2743,7 +2751,7 @@ func (s *wikiIngestService) generateWithTemplateResult(
 		)
 	}
 	thinking := false
-	opts := &chat.ChatOptions{Temperature: 0.3, Thinking: &thinking, MaxTokens: wikiLLMMaxTokens}
+	opts := &chat.ChatOptions{Temperature: 0.3, Thinking: &thinking, MaxTokens: resolvedWikiLLMMaxTokens()}
 	prefixFingerprint := chat.PromptPrefixFingerprint(messages, opts)
 	warmupKey := ""
 	if promptTpl == agent.WikiPageModifyUserPrompt {
