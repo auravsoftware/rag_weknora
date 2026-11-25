@@ -79,12 +79,12 @@ func (s *sessionService) KnowledgeQA(
 
 	// Initialize ChatManage defaults from config.yaml
 	freqPenalty := s.cfg.Conversation.Summary.FrequencyPenalty
-	if freqPenalty <= 0 {
-		freqPenalty = 0.5
+	if freqPenalty < 0 {
+		freqPenalty = 0
 	}
 	presPenalty := s.cfg.Conversation.Summary.PresencePenalty
-	if presPenalty <= 0 {
-		presPenalty = 0.2
+	if presPenalty < 0 {
+		presPenalty = 0
 	}
 
 	summaryConfig := types.SummaryConfig{
