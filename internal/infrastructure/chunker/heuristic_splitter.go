@@ -164,17 +164,30 @@ func extractHeadingEvents(bounds []boundary) []heuristicHeadingEvent {
 	return events
 }
 
-// isHeadingOnlySlice reports whether runes[start:end] contains only a single
-// non-empty heading line (no body text).
+// isHeadingOnlySlice reports whether runes[start:end] contains only short
+// heading lines (no body paragraphs). Used to prevent orphan headings like
+// "ĐIỀU 4: GIAO NHẬN HÀNG HÓA" or stacked "Mục II\nVAY VỐN...\nĐiều kiện..."
+// from being split off from the clauses that follow them.
 func isHeadingOnlySlice(runes []rune, start, end int) bool {
 	if end <= start || start < 0 || end > len(runes) {
 		return false
 	}
 	trimmed := strings.TrimSpace(string(runes[start:end]))
-	if trimmed == "" {
+	if trimmed == "" || utf8.RuneCountInString(trimmed) > 250 {
 		return false
 	}
-	return !strings.Contains(trimmed, "\n")
+	for _, line := range strings.Split(trimmed, "\n") {
+		lt := strings.TrimSpace(line)
+		if lt == "" {
+			continue
+		}
+		// Any line that looks like a full prose sentence or numbered clause body
+		// disqualifies the slice from being heading-only.
+		if utf8.RuneCountInString(lt) > 120 || strings.HasSuffix(lt, ".") {
+			return false
+		}
+	}
+	return true
 }
 
 // mergeHeadingOnlyBoundaries drops the split boundary immediately after a
@@ -189,12 +202,11 @@ func mergeHeadingOnlyBoundaries(bounds []boundary, runes []rune) []boundary {
 	i := 1
 	for i < len(bounds) {
 		prev := merged[len(merged)-1]
-		// If the span [prev.runeStart, bounds[i].runeStart) is a heading-only
-		// line and bounds[i] is not the end-of-document sentinel, absorb bounds[i]
-		// unless bounds[i] itself is a higher-or-equal major heading (level 1
-		// followed directly by another level 1 heading).
+		// If the span [prev.runeStart, bounds[i].runeStart) contains only heading
+		// lines (including stacked headings like "Mục II" + ALL CAPS title + sub-title)
+		// and bounds[i] is not the end-of-document sentinel, absorb bounds[i] so the
+		// heading block stays attached to the content that follows.
 		if prev.level > 0 && i < len(bounds)-1 &&
-			!(prev.level == 1 && bounds[i].level == 1) &&
 			isHeadingOnlySlice(runes, prev.runeStart, bounds[i].runeStart) {
 			i++
 			continue
@@ -291,6 +303,53 @@ func isShortSubHeadingLine(trimmed string) bool {
 	return rLen <= 80 && !strings.Contains(trimmed, ". ")
 }
 
+// startsNumberedSubClauseOne reports whether trimmed starts a new numbered
+// sub-clause series like "1.1. ...", "2.1. ...", or "3.1 ...".
+func startsNumberedSubClauseOne(trimmed string) bool {
+	if len(trimmed) < 4 || trimmed[0] < '0' || trimmed[0] > '9' {
+		return false
+	}
+	i := 0
+	for i < len(trimmed) && trimmed[i] >= '0' && trimmed[i] <= '9' {
+		i++
+	}
+	if i >= len(trimmed)-2 || trimmed[i] != '.' || trimmed[i+1] != '1' {
+		return false
+	}
+	next := trimmed[i+2]
+	return next == '.' || next == ' ' || next == '\t'
+}
+
+// isImplicitSectionHeading reports whether trimmed is a short unnumbered title
+// line (e.g. "Đối tượng vay vốn", "Nguyên tắc vay vốn") immediately preceding
+// a numbered sub-clause series ("2.1.", "3.1.").
+func isImplicitSectionHeading(trimmed string, lines []string, idx int) bool {
+	rLen := utf8.RuneCountInString(trimmed)
+	if rLen < 3 || rLen > 100 {
+		return false
+	}
+	// Must not start with a bullet, table pipe, or digit.
+	first := trimmed[0]
+	if first == '-' || first == '*' || first == '|' || (first >= '0' && first <= '9') || strings.HasPrefix(trimmed, "•") {
+		return false
+	}
+	// Must not end like a prose sentence or list lead-in.
+	lastR, _ := utf8.DecodeLastRuneInString(trimmed)
+	switch lastR {
+	case '.', ';', '?', '!', ':', ',', '。', '？', '！':
+		return false
+	}
+	// Look ahead to the next non-empty line.
+	for j := idx + 1; j < len(lines); j++ {
+		nt := strings.TrimSpace(lines[j])
+		if nt == "" {
+			continue
+		}
+		return startsNumberedSubClauseOne(nt)
+	}
+	return false
+}
+
 // findHeuristicBoundaries scans text and returns boundary positions in
 // ascending order. Lower-priority duplicates at the same offset are dropped.
 func findHeuristicBoundaries(text string, langs []string) []boundary {
@@ -347,6 +406,15 @@ func findHeuristicBoundaries(text string, langs []string) []boundary {
 				bounds = append(bounds, boundary{
 					runeStart: runeStart,
 					priority:  PrioAllCapsHeading,
+					level:     1,
+					heading:   trimmed,
+				})
+				added = true
+			}
+			if !added && isImplicitSectionHeading(trimmed, lines, i) {
+				bounds = append(bounds, boundary{
+					runeStart: runeStart,
+					priority:  PrioChapterMarker,
 					level:     1,
 					heading:   trimmed,
 				})

@@ -34,6 +34,129 @@ func isLikelyTruncated(content string) bool {
 	return false
 }
 
+// numberedItemKey identifies a numbered or lettered list item marker at the
+// start of a line (e.g. "2.7." -> prefix="2.", num=7; "b)" -> prefix="alpha)", num='b').
+type numberedItemKey struct {
+	prefix string
+	num    int
+}
+
+// parseLeadingNumberedItem parses a line-leading item marker such as "2.7. ...",
+// "2.7 ...", "7. ...", "7) ...", or "b) ...".
+func parseLeadingNumberedItem(line string) (numberedItemKey, bool) {
+	t := strings.TrimSpace(line)
+	if len(t) < 3 {
+		return numberedItemKey{}, false
+	}
+	// Multi-level numeric: "2.7. ..." or "2.7 ..." or "7.1.2. ..."
+	if t[0] >= '0' && t[0] <= '9' {
+		i := 0
+		for i < len(t) && ((t[i] >= '0' && t[i] <= '9') || t[i] == '.') {
+			i++
+		}
+		if i > 0 && i < len(t) && (t[i] == ' ' || t[i] == '\t' || t[i] == ')') {
+			token := strings.TrimRight(t[:i], ".")
+			if token == "" {
+				return numberedItemKey{}, false
+			}
+			if dot := strings.LastIndexByte(token, '.'); dot >= 0 {
+				n, err := parsePositiveASCIIInt(token[dot+1:])
+				if err {
+					return numberedItemKey{prefix: token[:dot+1], num: n}, true
+				}
+			} else if t[i] == ')' || (i > 0 && t[i-1] == '.') {
+				n, ok := parsePositiveASCIIInt(token)
+				if ok {
+					sep := "."
+					if t[i] == ')' {
+						sep = ")"
+					}
+					return numberedItemKey{prefix: "num" + sep, num: n}, true
+				}
+			}
+		}
+	}
+	// Single-letter item: "a) ..." or "a. ..."
+	if ((t[0] >= 'a' && t[0] <= 'z') || (t[0] >= 'A' && t[0] <= 'Z')) &&
+		(t[1] == ')' || t[1] == '.') && (t[2] == ' ' || t[2] == '\t') {
+		ch := t[0]
+		if ch >= 'A' && ch <= 'Z' {
+			ch += 'a' - 'A'
+		}
+		return numberedItemKey{prefix: "alpha" + string(t[1]), num: int(ch)}, true
+	}
+	return numberedItemKey{}, false
+}
+
+func parsePositiveASCIIInt(s string) (int, bool) {
+	if s == "" || len(s) > 4 {
+		return 0, false
+	}
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, false
+		}
+		n = n*10 + int(s[i]-'0')
+	}
+	return n, n > 0
+}
+
+// lastNumberedListItem returns the last numbered/lettered list item key in content
+// if the final non-empty paragraph of content belongs to a numbered list.
+func lastNumberedListItem(content string) (numberedItemKey, bool) {
+	lines := strings.Split(strings.TrimSpace(content), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		t := strings.TrimSpace(lines[i])
+		if t == "" {
+			continue
+		}
+		if key, ok := parseLeadingNumberedItem(t); ok {
+			return key, true
+		}
+		// Only inspect the last non-empty line; if it isn't a numbered item, stop.
+		break
+	}
+	return numberedItemKey{}, false
+}
+
+// endsInNumberedList reports whether content ends on a numbered/lettered list item.
+func endsInNumberedList(content string) bool {
+	_, ok := lastNumberedListItem(content)
+	return ok
+}
+
+// continuesNumberedList reports whether nextContent continues the numbered list
+// that currentContent ended on (e.g. current ends with "2.7." and next contains
+// "2.8." near its start, even if next begins with an overlapped "2.7.").
+func continuesNumberedList(currentContent, nextContent string) bool {
+	lastKey, ok := lastNumberedListItem(currentContent)
+	if !ok {
+		return false
+	}
+	checked := 0
+	for _, line := range strings.Split(nextContent, "\n") {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			continue
+		}
+		checked++
+		if key, kOK := parseLeadingNumberedItem(t); kOK {
+			if key.prefix == lastKey.prefix && key.num == lastKey.num+1 {
+				return true
+			}
+			// Allow skipping an overlapped repeat of lastKey itself on the first line.
+			if key.prefix == lastKey.prefix && key.num == lastKey.num && checked <= 2 {
+				continue
+			}
+		}
+		if checked >= 3 {
+			break
+		}
+	}
+	return false
+}
+
 // expandShortContextWithNeighbors expands the short context with neighbors.
 //
 // Lookups are not tenant scoped: hits from an org-shared KB belong to the
@@ -68,7 +191,10 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 		if r.ChunkType != string(types.ChunkTypeText) && r.ChunkType != string(types.ChunkTypeImageOCR) {
 			continue
 		}
-		needsExpand := runeLen(r.Content) < minLen || isLikelyTruncated(r.Content) || r.ChunkType == string(types.ChunkTypeImageOCR)
+		needsExpand := runeLen(r.Content) < minLen ||
+			isLikelyTruncated(r.Content) ||
+			endsInNumberedList(r.Content) ||
+			r.ChunkType == string(types.ChunkTypeImageOCR)
 		if !needsExpand || runeLen(r.Content) >= maxLen {
 			continue
 		}
@@ -151,6 +277,12 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			continue
 		}
 
+		// A long, non-truncated chunk that only qualified via endsInNumberedList
+		// should expand forward ONLY when the next chunk continues that numbered list.
+		listOnlyExpand := runeLen(res.Content) >= minLen &&
+			!isLikelyTruncated(res.Content) &&
+			res.ChunkType != string(types.ChunkTypeImageOCR)
+
 		prevContent := ""
 		nextContent := ""
 		prevIDs := []string{}
@@ -171,6 +303,10 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			}
 		}
 
+		if listOnlyExpand {
+			prevCursor = ""
+		}
+
 		p.fetchChunksIfMissing(ctx, chunkMap, prevCursor, nextCursor)
 
 		if prevCursor != "" {
@@ -185,9 +321,13 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 
 		if nextCursor != "" {
 			if nextChunk := chunkMap[nextCursor]; nextChunk != nil && nextChunk.KnowledgeID == baseChunk.KnowledgeID {
-				nextContent = nextChunk.Content
-				nextIDs = append(nextIDs, nextChunk.ID)
-				nextCursor = nextChunk.NextChunkID
+				if !listOnlyExpand || continuesNumberedList(baseChunk.Content, nextChunk.Content) {
+					nextContent = nextChunk.Content
+					nextIDs = append(nextIDs, nextChunk.ID)
+					nextCursor = nextChunk.NextChunkID
+				} else {
+					nextCursor = ""
+				}
 			} else {
 				nextCursor = ""
 			}
@@ -204,15 +344,32 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			if merged == "" {
 				break
 			}
-			if runeLen(merged) >= targetMinLen {
-				break
-			}
 			if prevCursor == "" && nextCursor == "" {
 				break
 			}
 
+			// Check if the next chunk continues an active numbered list (e.g. 2.7. -> 2.8.)
+			// even after targetMinLen has already been satisfied.
+			tailForList := baseChunk.Content
+			if nextContent != "" {
+				tailForList = nextContent
+			}
+			listContinues := false
+			if nextCursor != "" && runeLen(merged) < maxLen && endsInNumberedList(tailForList) {
+				p.fetchChunksIfMissing(ctx, chunkMap, nextCursor)
+				if nextChunk := chunkMap[nextCursor]; nextChunk != nil &&
+					nextChunk.KnowledgeID == baseChunk.KnowledgeID &&
+					continuesNumberedList(tailForList, nextChunk.Content) {
+					listContinues = true
+				}
+			}
+
+			if runeLen(merged) >= targetMinLen && !listContinues {
+				break
+			}
+
 			expanded := false
-			if prevCursor != "" {
+			if !listContinues && prevCursor != "" {
 				p.fetchChunksIfMissing(ctx, chunkMap, prevCursor)
 				if prevChunk := chunkMap[prevCursor]; prevChunk != nil &&
 					prevChunk.KnowledgeID == baseChunk.KnowledgeID {
@@ -226,7 +383,7 @@ func (p *PluginMerge) expandShortContextWithNeighbors(
 			}
 
 			merged = mergeOrderedContent(prevContent, baseChunk.Content, nextContent, maxLen)
-			if runeLen(merged) >= targetMinLen {
+			if runeLen(merged) >= targetMinLen && !listContinues {
 				break
 			}
 

@@ -299,3 +299,89 @@ func TestApplyOverlapAligned_NeverSplitsMidWordAtSmallSize(t *testing.T) {
 	res := SplitParentChild(sampleHD30, parentCfg, childCfg)
 	assertNoMidWordStart(t, sampleHD30, res.Children)
 }
+
+const sampleNHCSXH = `Phạm vi điều chỉnh, đối tượng áp dụng
+1.1. Phạm vi điều chỉnh Văn bản này hướng dẫn nghiệp vụ cho vay ưu đãi để mua, thuê mua nhà ở xã hội, nhà ở cho lực lượng vũ trang nhân dân; xây dựng hoặc cải tạo, sửa chữa nhà ở theo quy định của Luật Nhà ở, Nghị định số 100/2024/NĐ-CP ngày 26 tháng 7 năm 2024 của Chính phủ quy định chi tiết một số điều của Luật Nhà ở về phát triển và quản lý nhà ở xã hội.
+1.2. Đối tượng áp dụng
+a) Đối tượng vay vốn được quy định tại khoản 2 văn bản này.
+b) Đơn vị, cá nhân thuộc NHCSXH.
+c) Các tổ chức, cá nhân có liên quan.
+
+Đối tượng vay vốn
+2.1. Người có công với cách mạng, thân nhân liệt sĩ thuộc trường hợp được hỗ trợ cải thiện nhà ở theo quy định của Pháp lệnh Ưu đãi người có công với cách mạng.
+
+2.2. Hộ gia đình nghèo, cận nghèo tại khu vực nông thôn.
+
+2.3. Hộ gia đình nghèo, cận nghèo tại khu vực nông thôn thuộc vùng thường xuyên bị ảnh hưởng bởi thiên tai, biến đổi khí hậu.
+
+2.4. Hộ gia đình nghèo, cận nghèo tại khu vực đô thị.
+
+2.5. Người thu nhập thấp tại khu vực đô thị.
+
+2.6. Công nhân, người lao động đang làm việc tại doanh nghiệp, hợp tác xã, liên hiệp hợp tác xã trong và ngoài khu công nghiệp.
+
+2.7. Sĩ quan, quân nhân chuyên nghiệp, hạ sĩ quan thuộc lực lượng vũ trang nhân dân, công nhân công an, công chức, công nhân và viên chức quốc phòng đang phục vụ tại ngũ; người làm công tác cơ yếu, người làm công tác khác trong tổ chức cơ yếu hưởng lương từ ngân sách nhà nước đang công tác.
+
+2.8. Cán bộ, công chức, viên chức theo quy định của pháp luật về cán bộ, công chức, viên chức.
+
+Các đối tượng được vay vốn nêu trên sau đây gọi chung là khách hàng. Khách hàng thuộc đối tượng quy định tại điểm 2.7 khoản 2 văn bản này vay vốn để mua, thuê mua nhà ở xã hội hoặc vay vốn để mua, thuê mua nhà ở cho lực lượng vũ trang nhân dân hoặc vay vốn để xây dựng, cải tạo, sửa chữa nhà ở. Khách hàng thuộc đối tượng quy định tại các điểm 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.8 khoản 2 văn bản này vay vốn để mua, thuê mua nhà ở xã hội hoặc vay vốn để xây dựng, cải tạo, sửa chữa nhà ở.
+
+Nguyên tắc vay vốn
+3.1. Khách hàng phải đúng đối tượng được vay và đáp ứng đầy đủ các điều kiện vay vốn theo quy định.
+
+3.2. Khách hàng phải sử dụng vốn vay đúng mục đích xin vay.
+
+3.3. Khách hàng phải trả nợ cả gốc và lãi đúng hạn.
+
+3.4. Trường hợp một đối tượng được hưởng nhiều chính sách vay vốn ưu đãi hỗ trợ nhà ở thì chỉ được áp dụng một chính sách hỗ trợ mức cao nhất.
+
+3.5. Trường hợp hộ gia đình có nhiều đối tượng được hưởng nhiều chính sách vay vốn ưu đãi về nhà ở thì chỉ áp dụng một chính sách vay vốn cho cả hộ gia đình.
+
+Mục II
+
+VAY VỐN ĐỂ MUA, THUÊ MUA NHÀ Ở XÃ HỘI, NHÀ Ở CHO LỰC LƯỢNG VŨ TRANG NHÂN DÂN
+
+Điều kiện được vay vốn
+4.1. Khách hàng có nguồn thu nhập và có khả năng trả nợ theo cam kết với NHCSXH.
+4.2. Có Giấy đề nghị vay vốn để mua, thuê mua nhà ở xã hội theo mẫu quy định.`
+
+func TestVietnameseNHCSXH_ImplicitHeadingsAndMucII(t *testing.T) {
+	base := NormalizeSplitterConfig(SplitterConfig{Strategy: StrategyAuto})
+	parentCfg, childCfg := DeriveParentChildConfigs(base, 4096, 1024)
+	res := SplitParentChild(sampleNHCSXH, parentCfg, childCfg)
+	if len(res.Children) == 0 {
+		t.Fatal("expected child chunks")
+	}
+
+	assertNoMidWordStart(t, sampleNHCSXH, res.Children)
+
+	// 1. Every chunk containing 2.8 must carry "Đối tượng vay vốn" context in EmbeddingContent
+	// so semantic search & reranker never drop 2.8 when asked about eligible borrowers.
+	found28 := false
+	for i, c := range res.Children {
+		if strings.Contains(c.Content, "2.8. Cán bộ, công chức, viên chức") {
+			found28 = true
+			emb := c.EmbeddingContent()
+			if !strings.Contains(emb, "Đối tượng vay vốn") {
+				t.Errorf("chunk[%d] with 2.8 lacks 'Đối tượng vay vốn' context in EmbeddingContent:\n%s", i, emb)
+			}
+			if strings.Contains(c.Content, "3.1. Khách hàng phải đúng đối tượng") {
+				t.Errorf("chunk[%d] mixed section 2.8 with section 3.1:\n%s", i, c.Content)
+			}
+		}
+	}
+	if !found28 {
+		t.Fatal("did not find clause 2.8 in any child chunk")
+	}
+
+	// 2. Standalone "Mục II" + ALL CAPS title must not be left orphaned at the end of the 3.5 chunk.
+	for i, c := range res.Children {
+		if strings.Contains(c.Content, "3.5. Trường hợp hộ gia đình") && strings.Contains(c.Content, "Mục II") {
+			t.Errorf("chunk[%d] has orphaned 'Mục II' appended to section 3.5:\n%s", i, c.Content)
+		}
+		if strings.Contains(c.Content, "Mục II") && !strings.Contains(c.Content, "4.1.") {
+			t.Errorf("chunk[%d] has heading-only 'Mục II' separated from clause 4.1:\n%s", i, c.Content)
+		}
+	}
+}
+
