@@ -60,18 +60,21 @@ func ApproxTokenCountFromRuneLen(runeLen int, lang string) int {
 }
 
 // DetectLanguage returns a coarse language label by counting CJK runes vs.
-// Latin runes. The result is one of LangChinese, LangGerman, LangEnglish or
-// LangMixed. Detection is cheap and meant only for heuristic dispatch — it
-// is NOT a replacement for proper language identification.
+// Latin runes. The result is one of LangChinese, LangGerman, LangVietnamese,
+// LangEnglish or LangMixed. Detection is cheap and meant only for heuristic
+// dispatch — it is NOT a replacement for proper language identification.
 func DetectLanguage(s string) string {
 	if s == "" {
 		return LangMixed
 	}
-	var cjk, latin, umlaut int
+	var cjk, latin, umlaut, viet int
 	for _, r := range s {
 		switch {
 		case unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hangul, r) || unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r):
 			cjk++
+		case isVietnameseDiacritic(r):
+			viet++
+			latin++
 		case isGermanUmlaut(r):
 			umlaut++
 			latin++
@@ -92,10 +95,27 @@ func DetectLanguage(s string) string {
 	if cjkRatio > 0.3 {
 		return LangChinese
 	}
+	if viet >= 2 {
+		return LangVietnamese
+	}
 	if umlaut > 0 || hasGermanWords(s) {
 		return LangGerman
 	}
 	return LangEnglish
+}
+
+// isVietnameseDiacritic reports whether r is a Vietnamese-specific letter
+// (đ/Đ, ă/Ă, ơ/Ơ, ư/Ư, or vowels in the Latin Extended Additional block U+1EA0..U+1EF9).
+func isVietnameseDiacritic(r rune) bool {
+	if r >= 0x1EA0 && r <= 0x1EF9 {
+		return true
+	}
+	switch r {
+	case 'ă', 'Ă', 'đ', 'Đ', 'ơ', 'Ơ', 'ư', 'Ư',
+		'â', 'Â', 'ê', 'Ê', 'ô', 'Ô':
+		return true
+	}
+	return false
 }
 
 func isGermanUmlaut(r rune) bool {

@@ -326,7 +326,7 @@ const chunkingRows = computed<Array<{ key: string; label: string; value: string 
   }
   if (cfg.enable_parent_child) {
     const parent = cfg.parent_chunk_size || 4096
-    const child = cfg.child_chunk_size || 384
+    const child = cfg.child_chunk_size || 1024
     rows.push({
       key: 'parent-child',
       label: t('knowledgeEditor.chunking.parentChildLabel'),

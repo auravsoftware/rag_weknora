@@ -58,8 +58,12 @@ var GermanChapterPattern = regexp.MustCompile(`(?m)^[ \t]*(?:Kapitel|Abschnitt|T
 var EnglishChapterPattern = regexp.MustCompile(`(?m)^[ \t]*(?:Chapter|Section|Part)\s+(?:[0-9]+|[IVX]{1,5})[\.: ].{0,200}$`)
 
 // VietnameseChapterPattern matches Vietnamese legal/document section markers
-// such as "Phần I", "Chương II", "Mục 1", "Tiểu mục 2", "Điều 15.", "Khoản 1.".
-var VietnameseChapterPattern = regexp.MustCompile(`(?mi)^[ \t]*(?:Phần|Chương|Mục|Tiểu\s+mục|Điều|Khoản)\s+(?:thứ\s+\S+|[0-9]+|[IVXLCDM]{1,7})[\.: \t].{0,200}$`)
+// such as "Phần I", "Chương II", "Mục 1", "Tiểu mục 2", "Điều 15.", "Khoản 1.", "Phụ lục 1".
+var VietnameseChapterPattern = regexp.MustCompile(`(?mi)^[ \t]*(?:Phần|Chương|Mục|Tiểu\s+mục|Điều|Khoản|Phụ\s+lục)\s+(?:thứ\s+\S+|[0-9]+|[IVXLCDM]{1,7})[\.: \t].{0,200}$`)
+
+// VietnamesePartyPattern matches Vietnamese contract party header lines such as
+// "BÊN MUA (BÊN A): ..." or "BÊN BÁN (BÊN B): ...".
+var VietnamesePartyPattern = regexp.MustCompile(`(?m)^[ \t]*BÊN\s+(?:MUA|BÁN|CHO\s+THUÊ|THUÊ|GIAO|NHẬN|CUNG\s+CẤP|A|B)\b.{0,200}$`)
 
 // ChineseChapterPattern matches CJK chapter / section markers like 第一章,
 // 第3节, 第 1 章 (whitespace between 第 / numeral / unit is tolerated).

@@ -268,7 +268,7 @@ const sliderStyle = computed(() => (props.embedded ? { width: '100%' } : { width
 const chunkSizeMarks = { 100: '100', 1000: '1000', 2000: '2000', 4000: '4000' }
 const chunkOverlapMarks = { 0: '0', 250: '250', 500: '500' }
 const parentChunkSizeMarks = { 512: '512', 2048: '2048', 4096: '4096', 8192: '8192' }
-const childChunkSizeMarks = { 64: '64', 384: '384', 1024: '1024', 2048: '2048' }
+const childChunkSizeMarks = { 64: '64', 512: '512', 1024: '1024', 2048: '2048' }
 
 const emit = defineEmits<{
   'update:config': [value: ChunkingConfig]
@@ -281,7 +281,7 @@ const localChunkOverlap = ref(props.config.chunkOverlap)
 const localSeparators = ref([...props.config.separators])
 const localEnableParentChild = ref(props.config.enableParentChild ?? false)
 const localParentChunkSize = ref(props.config.parentChunkSize || 4096)
-const localChildChunkSize = ref(props.config.childChunkSize || 384)
+const localChildChunkSize = ref(props.config.childChunkSize || 1024)
 const localStrategy = ref(props.config.strategy ?? '')
 const localTokenLimit = ref(props.config.tokenLimit ?? 0)
 const localLanguages = ref<string[]>([...(props.config.languages ?? [])])
@@ -360,7 +360,7 @@ watch(() => props.config, (newConfig) => {
   localSeparators.value = [...newConfig.separators]
   localEnableParentChild.value = newConfig.enableParentChild ?? false
   localParentChunkSize.value = newConfig.parentChunkSize || 4096
-  localChildChunkSize.value = newConfig.childChunkSize || 384
+  localChildChunkSize.value = newConfig.childChunkSize || 1024
   localStrategy.value = newConfig.strategy ?? ''
   localTokenLimit.value = newConfig.tokenLimit ?? 0
   localLanguages.value = [...(newConfig.languages ?? [])]

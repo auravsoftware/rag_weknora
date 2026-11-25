@@ -150,16 +150,121 @@ func orderedScannedPDFPageImages(result *types.ReadResult) []scannedPDFPage {
 	return pages
 }
 
+// isSentenceEndRune reports whether r closes a sentence or structural line.
+func isSentenceEndRune(r rune) bool {
+	switch r {
+	case '.', '!', '?', ':', ';', '。', '！', '？', '：', '；', '"', '”', ')', ']', '|':
+		return true
+	}
+	return false
+}
+
+// isListOrTableLine reports whether line starts a Markdown list item or table row.
+func isListOrTableLine(line string) bool {
+	t := strings.TrimSpace(line)
+	if t == "" {
+		return false
+	}
+	if strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ") ||
+		strings.HasPrefix(t, "• ") || strings.HasPrefix(t, "+ ") ||
+		strings.HasPrefix(t, "|") {
+		return true
+	}
+	// Ordered list item: "1. ", "1) ", "a. ", "a) "
+	if len(t) >= 3 && (t[0] >= '0' && t[0] <= '9') {
+		i := 0
+		for i < len(t) && t[i] >= '0' && t[i] <= '9' {
+			i++
+		}
+		if i < len(t)-1 && (t[i] == '.' || t[i] == ')') && t[i+1] == ' ' {
+			return true
+		}
+	}
+	if len(t) >= 3 && ((t[0] >= 'a' && t[0] <= 'z') || (t[0] >= 'A' && t[0] <= 'Z')) &&
+		(t[1] == '.' || t[1] == ')') && t[2] == ' ' {
+		return true
+	}
+	return false
+}
+
+// isStructuralStartLine reports whether line begins a new heading, clause, list, or table.
+func isStructuralStartLine(line string) bool {
+	t := strings.TrimSpace(line)
+	if t == "" {
+		return false
+	}
+	if strings.HasPrefix(t, "#") || isListOrTableLine(t) {
+		return true
+	}
+	lower := strings.ToLower(t)
+	for _, prefix := range []string{"điều ", "chương ", "mục ", "phần ", "khoản ", "phụ lục ", "bên mua", "bên bán"} {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// scannedPDFLastNonEmptyLine returns the final non-empty trimmed line of s.
+func scannedPDFLastNonEmptyLine(s string) string {
+	lines := strings.Split(s, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if t := strings.TrimSpace(lines[i]); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
+// scannedPDFFirstNonEmptyLine returns the first non-empty trimmed line of s.
+func scannedPDFFirstNonEmptyLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if t := strings.TrimSpace(line); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
+// pageJoinMode determines how two consecutive OCR pages should be joined so
+// sentences, bullet lists, and tables spanning a page break stay intact.
+// Returns (separator, markerSuffix):
+//   - inline sentence continuation: (" ", " ")
+//   - list / table continuation:    ("\n", "\n")
+//   - standard paragraph break:     ("\n\n", "\n")
+func pageJoinMode(prevText, nextText string) (string, string) {
+	prevLine := scannedPDFLastNonEmptyLine(prevText)
+	nextLine := scannedPDFFirstNonEmptyLine(nextText)
+	if prevLine == "" || nextLine == "" {
+		return "\n\n", "\n"
+	}
+
+	// Table or list continuing across page break: avoid injecting a hard "\n\n".
+	if isListOrTableLine(nextLine) && (isListOrTableLine(prevLine) || strings.HasSuffix(prevLine, ":")) {
+		return "\n", "\n"
+	}
+
+	// Sentence continuing across page break: previous line didn't close a sentence
+	// and next line does not start a new heading/clause/list/table.
+	lastR, _ := utf8.DecodeLastRuneInString(prevLine)
+	if !isSentenceEndRune(lastR) && !isStructuralStartLine(nextLine) {
+		return " ", " "
+	}
+
+	return "\n\n", "\n"
+}
+
 // assembleScannedPDFMarkdown joins per-page OCR text into a single continuous
 // Markdown document with `<!-- Page N -->` markers and builds exact rune-range
 // PDF SourceBlocks for each page so downstream chunking preserves accurate
 // single-page and cross-page citations.
 func assembleScannedPDFMarkdown(ocrTexts []string, sourceHash string) (string, []types.SourceBlock, int) {
 	var (
-		sb      strings.Builder
-		blocks  []types.SourceBlock
-		runePos int
-		okPages int
+		sb       strings.Builder
+		blocks   []types.SourceBlock
+		runePos  int
+		okPages  int
+		prevText string
 	)
 	for i, raw := range ocrTexts {
 		text := strings.TrimSpace(raw)
@@ -167,12 +272,15 @@ func assembleScannedPDFMarkdown(ocrTexts []string, sourceHash string) (string, [
 			continue
 		}
 		pageNum := i + 1
+		markerSuffix := "\n"
 		if sb.Len() > 0 {
-			sb.WriteString("\n\n")
-			runePos += 2
+			var sep string
+			sep, markerSuffix = pageJoinMode(prevText, text)
+			sb.WriteString(sep)
+			runePos += utf8.RuneCountInString(sep)
 		}
 		pageStart := runePos
-		marker := fmt.Sprintf("<!-- Page %d -->\n", pageNum)
+		marker := fmt.Sprintf("<!-- Page %d -->%s", pageNum, markerSuffix)
 		sb.WriteString(marker)
 		sb.WriteString(text)
 		runePos += utf8.RuneCountInString(marker) + utf8.RuneCountInString(text)
@@ -186,6 +294,7 @@ func assembleScannedPDFMarkdown(ocrTexts []string, sourceHash string) (string, [
 				SourceHash: sourceHash,
 			},
 		})
+		prevText = text
 		okPages++
 	}
 	return sb.String(), blocks, okPages
@@ -291,6 +400,7 @@ func (s *knowledgeService) ocrScannedPDFDocument(
 
 	prompt := buildVLMOCRPrompt("scanned_pdf", vlmCfg)
 	ocrTexts := make([]string, len(pages))
+	failedFlags := make([]bool, len(pages))
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 
@@ -315,6 +425,7 @@ func (s *knowledgeService) ocrScannedPDFDocument(
 				&vlm.PredictOptions{Thinking: &thinkingOff},
 			)
 			if ocrErr != nil {
+				failedFlags[idx] = true
 				logger.Warnf(ctx,
 					"[ScannedPDFOCR] VLM OCR failed on page %d/%d for knowledge %s: %v",
 					p.pageNum, len(pages), knowledge.ID, ocrErr)
@@ -322,6 +433,7 @@ func (s *knowledgeService) ocrScannedPDFDocument(
 			}
 			cleaned, valErr := validateOCRText(raw)
 			if valErr != nil {
+				failedFlags[idx] = true
 				logger.Warnf(ctx,
 					"[ScannedPDFOCR] VLM OCR output rejected on page %d/%d for knowledge %s: %v",
 					p.pageNum, len(pages), knowledge.ID, valErr)
@@ -335,6 +447,18 @@ func (s *knowledgeService) ocrScannedPDFDocument(
 	if err := ctx.Err(); err != nil {
 		logger.Warnf(ctx, "[ScannedPDFOCR] Interrupted for knowledge %s: %v", knowledge.ID, err)
 		return false, err
+	}
+
+	var failedPageNums []string
+	for idx, failed := range failedFlags {
+		if failed {
+			failedPageNums = append(failedPageNums, strconv.Itoa(pages[idx].pageNum))
+		}
+	}
+	if len(failedPageNums) > 0 {
+		logger.Errorf(ctx,
+			"[ScannedPDFOCR] %d/%d pages failed or were rejected during OCR for knowledge %s (pages: %s)",
+			len(failedPageNums), len(pages), knowledge.ID, strings.Join(failedPageNums, ","))
 	}
 
 	mergedMarkdown, pageBlocks, okPages := assembleScannedPDFMarkdown(ocrTexts, knowledge.FileHash)
@@ -357,6 +481,9 @@ func (s *knowledgeService) ocrScannedPDFDocument(
 	result.Metadata["scanned_pdf_ocr"] = "ocr_first"
 	result.Metadata["scanned_pdf_ocr_pages"] = strconv.Itoa(okPages)
 	result.Metadata["scanned_pdf_total_pages"] = strconv.Itoa(len(pages))
+	if len(failedPageNums) > 0 {
+		result.Metadata["scanned_pdf_failed_pages"] = strings.Join(failedPageNums, ",")
+	}
 
 	s.endStage(ctx, knowledge.ID, types.StageMultimodal, types.JSONMap{
 		"mode":         "scanned_pdf_ocr_first",

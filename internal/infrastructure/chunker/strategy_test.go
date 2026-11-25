@@ -232,7 +232,7 @@ func TestNormalizeSplitterConfig_MatchesIngestionDefaults(t *testing.T) {
 	if cfg.ChunkOverlap != DefaultChunkOverlap {
 		t.Errorf("chunk overlap: got %d want %d", cfg.ChunkOverlap, DefaultChunkOverlap)
 	}
-	if len(cfg.Separators) != 3 {
+	if len(cfg.Separators) != 4 {
 		t.Fatalf("separators: got %v", cfg.Separators)
 	}
 }
@@ -252,14 +252,17 @@ func TestDeriveParentChildConfigs_DefaultSizes(t *testing.T) {
 		Strategy:     StrategyHeading,
 	}
 	parent, child := DeriveParentChildConfigs(base, 0, 0)
-	if parent.ChunkSize != 4096 || child.ChunkSize != 384 {
+	if parent.ChunkSize != 4096 || child.ChunkSize != 1024 {
 		t.Fatalf("default sizes: parent=%d child=%d", parent.ChunkSize, child.ChunkSize)
+	}
+	if parent.ChunkOverlap != 0 {
+		t.Fatalf("parent overlap: got %d want 0", parent.ChunkOverlap)
 	}
 	if parent.Strategy != StrategyHeading || child.Strategy != StrategyHeading {
 		t.Fatalf("strategy not propagated: parent=%q child=%q", parent.Strategy, child.Strategy)
 	}
-	if child.ChunkOverlap != 384/5 {
-		t.Fatalf("child overlap: got %d want %d", child.ChunkOverlap, 384/5)
+	if child.ChunkOverlap != 1024/5 {
+		t.Fatalf("child overlap: got %d want %d", child.ChunkOverlap, 1024/5)
 	}
 }
 

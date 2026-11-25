@@ -219,7 +219,7 @@ func defaultChunkSizeAndOverlap(cfg SplitterConfig) SplitterConfig {
 func NormalizeSplitterConfig(cfg SplitterConfig) SplitterConfig {
 	cfg = defaultChunkSizeAndOverlap(cfg)
 	if len(cfg.Separators) == 0 {
-		cfg.Separators = []string{"\n\n", "\n", "。"}
+		cfg.Separators = []string{"\n\n", "\n", "。", ". "}
 	}
 	return cfg
 }
@@ -241,16 +241,18 @@ func NormalizeLineEndings(text string) string {
 // and ingestion remain in lockstep as the parent-child defaults evolve.
 // Languages are copied to both levels so parent and child splitters use the same boundary rules.
 // TokenLimit is copied only to children because parents keep the configured context window.
+// Parent overlap is set to 0 because parents are expanded for context after child
+// retrieval; non-zero parent overlap would duplicate child chunks at parent seams.
 func DeriveParentChildConfigs(base SplitterConfig, parentSize, childSize int) (parent, child SplitterConfig) {
 	if parentSize <= 0 {
 		parentSize = 4096
 	}
 	if childSize <= 0 {
-		childSize = 384
+		childSize = 1024
 	}
 	parent = SplitterConfig{
 		ChunkSize:    parentSize,
-		ChunkOverlap: base.ChunkOverlap,
+		ChunkOverlap: 0,
 		Separators:   base.Separators,
 		Strategy:     base.Strategy,
 		Languages:    base.Languages,
@@ -347,7 +349,7 @@ func runTier(tier StrategyTier, text string, cfg SplitterConfig, profile *DocPro
 func ensureDefaults(cfg SplitterConfig) SplitterConfig {
 	cfg = defaultChunkSizeAndOverlap(cfg)
 	if len(cfg.Separators) == 0 {
-		cfg.Separators = []string{"\n\n", "\n", "。"}
+		cfg.Separators = []string{"\n\n", "\n", "。", ". "}
 	}
 	if cfg.TokenLimit > 0 {
 		if charBudget := tokenRuneBudget(cfg); charBudget > 0 && charBudget < cfg.ChunkSize {

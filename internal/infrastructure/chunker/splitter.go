@@ -111,7 +111,7 @@ func DefaultConfig() SplitterConfig {
 	return SplitterConfig{
 		ChunkSize:    DefaultChunkSize,
 		ChunkOverlap: DefaultChunkOverlap,
-		Separators:   []string{"\n\n", "\n", "。"},
+		Separators:   []string{"\n\n", "\n", "。", ". "},
 	}
 }
 
@@ -312,7 +312,7 @@ func SplitText(text string, cfg SplitterConfig) []Chunk {
 	}
 
 	// Step 3: Merge units into chunks with overlap
-	return mergeUnits(units, chunkSize, chunkOverlap)
+	return mergeUnitsWithOptions(units, chunkSize, chunkOverlap, tokenBudget == 0)
 }
 
 // buildUnitsWithProtection splits text into units, preserving protected spans as atomic.
@@ -407,11 +407,80 @@ func buildUnitsWithProtection(text string, protected []span, separators []string
 	return units
 }
 
+// isListItemUnit reports whether s is a bullet or lettered/numbered list item line.
+func isListItemUnit(s string) bool {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return false
+	}
+	if strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ") ||
+		strings.HasPrefix(t, "• ") || strings.HasPrefix(t, "+ ") {
+		return true
+	}
+	// Lettered or numbered list item: "a. ", "a) ", "1. ", "1) "
+	if len(t) >= 3 && ((t[0] >= 'a' && t[0] <= 'z') || (t[0] >= 'A' && t[0] <= 'Z')) &&
+		(t[1] == '.' || t[1] == ')') && t[2] == ' ' {
+		return true
+	}
+	if len(t) >= 3 && (t[0] >= '0' && t[0] <= '9') {
+		i := 0
+		for i < len(t) && t[i] >= '0' && t[i] <= '9' {
+			i++
+		}
+		if i < len(t)-1 && (t[i] == '.' || t[i] == ')') && t[i+1] == ' ' {
+			return true
+		}
+	}
+	return false
+}
+
+// extractListLeadIn returns the trimmed line if s is a short lead-in line
+// ending with ':' (e.g. "Hồ sơ thanh toán gồm:"), or "" otherwise.
+func extractListLeadIn(s string) string {
+	t := strings.TrimSpace(s)
+	if t == "" || !strings.HasSuffix(t, ":") {
+		return ""
+	}
+	if strings.Contains(t, "\n") || runeLen(t) > 160 {
+		return ""
+	}
+	return t
+}
+
+// isTableHeaderUnit reports whether s matches a Markdown table header + separator block.
+func isTableHeaderUnit(s string) bool {
+	if len(defaultHeaderHooks) == 0 {
+		return false
+	}
+	return defaultHeaderHooks[0].startPattern.MatchString(s)
+}
+
+// detachTrailingTableHeader removes a trailing table header (and any immediately
+// following pure-whitespace units) from current so a table header is never left
+// orphaned at the end of a chunk when the first data row overflows into the next chunk.
+func detachTrailingTableHeader(current []splitUnit) (kept []splitUnit, detached []splitUnit) {
+	if len(current) == 0 {
+		return current, nil
+	}
+	idx := len(current) - 1
+	for idx >= 0 && strings.TrimSpace(current[idx].text) == "" {
+		idx--
+	}
+	if idx >= 0 && isTableHeaderUnit(current[idx].text) {
+		return current[:idx], current[idx:]
+	}
+	return current, nil
+}
+
 // mergeUnits combines split units into chunks with overlap tracking.
 // Enforces an absolute maximum chunk size to prevent exceeding downstream limits (e.g., embedding APIs).
 // Active contextual headers (e.g., Markdown table headers) are prepended to new
 // chunks so that every chunk carries its own header context.
 func mergeUnits(units []splitUnit, chunkSize, chunkOverlap int) []Chunk {
+	return mergeUnitsWithOptions(units, chunkSize, chunkOverlap, true)
+}
+
+func mergeUnitsWithOptions(units []splitUnit, chunkSize, chunkOverlap int, allowListSoftCap bool) []Chunk {
 	if len(units) == 0 {
 		return nil
 	}
@@ -423,21 +492,33 @@ func mergeUnits(units []splitUnit, chunkSize, chunkOverlap int) []Chunk {
 	var chunks []Chunk
 	var current []splitUnit
 	curLen := 0
+	curContextHeader := ""
+	activeListLeadIn := ""
+
+	flushCurrent := func() {
+		if len(current) == 0 {
+			return
+		}
+		ch := buildChunk(current, len(chunks))
+		if curContextHeader != "" && !strings.Contains(ch.Content, curContextHeader) {
+			ch.ContextHeader = curContextHeader
+		}
+		chunks = append(chunks, ch)
+		current = nil
+		curLen = 0
+		curContextHeader = ""
+	}
 
 	for _, u := range units {
 		uLen := runeLen(u.text)
 
 		// If this single unit exceeds absolute max, force split it further
 		if uLen > absoluteMaxSize {
-			// Flush current chunk if any
-			if len(current) > 0 {
-				chunks = append(chunks, buildChunk(current, len(chunks)))
-				current = nil
-				curLen = 0
-			}
+			flushCurrent()
 
 			// Update header state even for oversized units
 			ht.update(u.text)
+			activeListLeadIn = ""
 
 			// Split this oversized unit into smaller chunks
 			runes := []rune(u.text)
@@ -472,9 +553,7 @@ func mergeUnits(units []splitUnit, chunkSize, chunkOverlap int) []Chunk {
 		// Flush at table boundary so the next table is not merged into a chunk
 		// that still carries the previous table's prepended header context.
 		if ht.headerEndedThisUnit && len(current) > 0 {
-			chunks = append(chunks, buildChunk(current, len(chunks)))
-			current = nil
-			curLen = 0
+			flushCurrent()
 		}
 		headers := ht.getHeaders()
 		headersLen := runeLen(headers)
@@ -483,44 +562,100 @@ func mergeUnits(units []splitUnit, chunkSize, chunkOverlap int) []Chunk {
 			headersLen = 0
 		}
 
+		// Track colon lead-in lines ("Hồ sơ thanh toán gồm:") and list items.
+		uIsListItem := isListItemUnit(u.text)
+		if lead := extractListLeadIn(u.text); lead != "" {
+			activeListLeadIn = lead
+		} else if !uIsListItem && strings.TrimSpace(u.text) != "" {
+			activeListLeadIn = ""
+		}
+
+		// Allow a modest soft cap (1.4x chunkSize) while keeping a colon lead-in
+		// and its list items together in one chunk so medium lists are not split mid-list.
+		effectiveLimit := chunkSize
+		if allowListSoftCap && activeListLeadIn != "" && uIsListItem && len(current) > 0 {
+			softCap := chunkSize + chunkSize*2/5
+			if softCap > absoluteMaxSize {
+				softCap = absoluteMaxSize
+			}
+			if strings.Contains(unitsText(current), activeListLeadIn) {
+				effectiveLimit = softCap
+			}
+		}
+
 		// If adding this unit (plus reserving space for headers in a potential
-		// next chunk) would exceed chunk size, flush the current chunk.
-		if curLen+uLen+headersLen > chunkSize && len(current) > 0 {
-			chunks = append(chunks, buildChunk(current, len(chunks)))
+		// next chunk) would exceed effectiveLimit, flush the current chunk.
+		if curLen+uLen+headersLen > effectiveLimit && len(current) > 0 {
+			// Prevent orphaning a Markdown table header at the tail of a prose chunk
+			// when its first data row overflows into the next chunk.
+			detachedHeader := false
+			if tableRowPattern.MatchString(u.text) {
+				if kept, detached := detachTrailingTableHeader(current); len(detached) > 0 &&
+					len(kept) > 0 && strings.TrimSpace(unitsText(kept)) != "" {
+					ch := buildChunk(kept, len(chunks))
+					if curContextHeader != "" && !strings.Contains(ch.Content, curContextHeader) {
+						ch.ContextHeader = curContextHeader
+					}
+					chunks = append(chunks, ch)
+					current = detached
+					curLen = 0
+					for _, d := range detached {
+						curLen += runeLen(d.text)
+					}
+					curContextHeader = ""
+					detachedHeader = true
+				}
+			}
 
-			// Keep overlap from the end of current
-			current, curLen = computeOverlap(current, chunkOverlap, chunkSize, uLen)
+			if !detachedHeader {
+				ch := buildChunk(current, len(chunks))
+				if curContextHeader != "" && !strings.Contains(ch.Content, curContextHeader) {
+					ch.ContextHeader = curContextHeader
+				}
+				chunks = append(chunks, ch)
 
-			// Shrink overlap further if needed to fit headers + next unit
-			if headers != "" && headersLen+uLen <= chunkSize {
-				for len(current) > 0 && curLen+uLen+headersLen > chunkSize {
-					curLen -= runeLen(current[0].text)
-					current = current[1:]
+				// Keep overlap from the end of current
+				current, curLen = computeOverlap(current, chunkOverlap, chunkSize, uLen)
+				curContextHeader = ""
+
+				// Carry over list lead-in via ContextHeader if a long list had to split
+				// and the lead-in is not already present in the retained overlap.
+				if activeListLeadIn != "" && uIsListItem && !strings.Contains(unitsText(current), activeListLeadIn) {
+					curContextHeader = activeListLeadIn
 				}
 
-				// Prepend headers if the column-name context is not already present
-				// in the overlap or the next unit being added.
-				overlapText := unitsText(current)
-				if !headerAlreadyPresent(headers, overlapText, u.text) &&
-					!headerColumnMismatch(headers, u.text) {
-					startPos := u.start
-					if len(current) > 0 {
-						startPos = current[0].start
+				// Shrink overlap further if needed to fit headers + next unit.
+				// For Markdown table rows, always allow prepending the table header as
+				// long as header + row fits within absoluteMaxSize so long table rows
+				// never lose their column names.
+				canPrependHeader := headers != "" &&
+					(headersLen+uLen <= chunkSize || (tableRowPattern.MatchString(u.text) && headersLen+uLen <= absoluteMaxSize))
+				if canPrependHeader {
+					for len(current) > 0 && curLen+uLen+headersLen > chunkSize {
+						curLen -= runeLen(current[0].text)
+						current = current[1:]
 					}
-					hUnit := splitUnit{text: headers, start: startPos, end: startPos}
-					current = append([]splitUnit{hUnit}, current...)
-					curLen += headersLen
+
+					// Prepend headers if the column-name context is not already present
+					// in the overlap or the next unit being added.
+					overlapText := unitsText(current)
+					if !headerAlreadyPresent(headers, overlapText, u.text) &&
+						!headerColumnMismatch(headers, u.text) {
+						startPos := u.start
+						if len(current) > 0 {
+							startPos = current[0].start
+						}
+						hUnit := splitUnit{text: headers, start: startPos, end: startPos}
+						current = append([]splitUnit{hUnit}, current...)
+						curLen += headersLen
+					}
 				}
 			}
 		}
 
 		// Check if adding this unit would exceed absolute max
 		if curLen+uLen > absoluteMaxSize {
-			if len(current) > 0 {
-				chunks = append(chunks, buildChunk(current, len(chunks)))
-				current = nil
-				curLen = 0
-			}
+			flushCurrent()
 		}
 
 		current = append(current, u)
@@ -528,9 +663,7 @@ func mergeUnits(units []splitUnit, chunkSize, chunkOverlap int) []Chunk {
 	}
 
 	// Flush remaining
-	if len(current) > 0 {
-		chunks = append(chunks, buildChunk(current, len(chunks)))
-	}
+	flushCurrent()
 
 	return chunks
 }

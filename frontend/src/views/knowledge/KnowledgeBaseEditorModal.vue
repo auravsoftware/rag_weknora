@@ -971,7 +971,7 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
       parserEngineRules: undefined as any,
       enableParentChild: true,
       parentChunkSize: 4096,
-      childChunkSize: 384,
+      childChunkSize: 1024,
       // New KBs default to the adaptive auto-strategy. User can change in the UI.
       strategy: 'auto' as string,
       tokenLimit: 0,
@@ -1136,7 +1136,7 @@ const loadKBData = async (
         parserEngineRules: kb.chunking_config?.parser_engine_rules || undefined,
         enableParentChild: kb.chunking_config?.enable_parent_child || false,
         parentChunkSize: kb.chunking_config?.parent_chunk_size || 4096,
-        childChunkSize: kb.chunking_config?.child_chunk_size || 384,
+        childChunkSize: kb.chunking_config?.child_chunk_size || 1024,
         // Existing KBs without strategy field render as empty (= legacy behavior).
         // The user has to actively pick a value to opt in to the new tiers.
         strategy: kb.chunking_config?.strategy || '',
@@ -1826,7 +1826,7 @@ const doSubmit = async () => {
           parserEngineRules: data.chunking_config.parser_engine_rules || undefined,
           enableParentChild: data.chunking_config.enable_parent_child || false,
           parentChunkSize: data.chunking_config.parent_chunk_size || 4096,
-          childChunkSize: data.chunking_config.child_chunk_size || 384,
+          childChunkSize: data.chunking_config.child_chunk_size || 1024,
           // Always send strategy / tokenLimit / languages — backend treats
           // empty/0/[] as a valid clear, so we must include them in the
           // payload to let users reset back to defaults.

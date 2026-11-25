@@ -310,3 +310,64 @@ func TestOCRScannedPDFDocument_FallbackWhenVLMDisabled(t *testing.T) {
 	assert.False(t, applied)
 	assert.Len(t, res.ImageRefs, 1, "legacy fallback must preserve ImageRefs")
 }
+
+func TestAssembleScannedPDFMarkdown_SmartCrossPageJoin(t *testing.T) {
+	t.Run("mid-sentence page break joins inline without double newline", func(t *testing.T) {
+		p1 := "9.2. Bên A được quyền thu hồi bảo lãnh nếu Bên B không tiếp tục thực hiện Hợp đồng trong"
+		p2 := "thời hạn yêu cầu của Bên A hoặc vi phạm nghiêm trọng."
+		merged, blocks, ok := assembleScannedPDFMarkdown([]string{p1, p2}, "hash-1")
+		require.Equal(t, 2, ok)
+		require.Len(t, blocks, 2)
+		assert.NotContains(t, merged, "\n\n<!-- Page 2 -->", "mid-sentence break must not insert paragraph break")
+		assert.Contains(t, merged, "trong <!-- Page 2 --> thời hạn")
+		runes := []rune(merged)
+		assert.Equal(t, "<!-- Page 1 -->\n"+p1, string(runes[blocks[0].Start:blocks[0].End]))
+		assert.Equal(t, "<!-- Page 2 --> "+p2, string(runes[blocks[1].Start:blocks[1].End]))
+	})
+
+	t.Run("bullet list spanning page break joins with single newline", func(t *testing.T) {
+		p1 := "Hồ sơ thanh toán gồm:\n- Hoá đơn tài chính hợp lệ"
+		p2 := "- Giấy đề nghị thanh toán\n- Tờ khai hải quan"
+		merged, blocks, ok := assembleScannedPDFMarkdown([]string{p1, p2}, "hash-2")
+		require.Equal(t, 2, ok)
+		require.Len(t, blocks, 2)
+		assert.NotContains(t, merged, "\n\n<!-- Page 2 -->", "list continuation must not insert paragraph break")
+		assert.Contains(t, merged, "\n<!-- Page 2 -->\n- Giấy đề nghị thanh toán")
+	})
+}
+
+func TestOCRScannedPDFDocument_RecordsFailedPages(t *testing.T) {
+	ctx := context.Background()
+	stubVLM := &scannedPDFStubVLM{
+		id: "vlm-ocr-1",
+		byImgBytes: map[string]string{
+			"p1": "Nội dung trang 1.",
+			"p3": "Nội dung trang 3.",
+		},
+		errByImg: map[string]error{
+			"p2": errors.New("vlm timeout"),
+		},
+	}
+	svc := &knowledgeService{
+		modelService: &scannedPDFTestModelService{
+			models: map[string]vlm.VLM{"vlm-ocr-1": stubVLM},
+		},
+	}
+	kb := &types.KnowledgeBase{ID: "kb-1", VLMConfig: types.VLMConfig{Enabled: true, ModelID: "vlm-ocr-1"}}
+	knowledge := &types.Knowledge{ID: "know-1", FileHash: "hash-fail"}
+	res := &types.ReadResult{
+		MarkdownContent: "![p1](images/p1.jpg)\n\n![p2](images/p2.jpg)\n\n![p3](images/p3.jpg)",
+		ImageRefs: []types.ImageRef{
+			{OriginalRef: "images/p1.jpg", ImageData: []byte("p1")},
+			{OriginalRef: "images/p2.jpg", ImageData: []byte("p2")},
+			{OriginalRef: "images/p3.jpg", ImageData: []byte("p3")},
+		},
+		Metadata: map[string]string{"pdf_classification": "scanned", "image_source_type": "scanned_pdf"},
+	}
+	applied, err := svc.ocrScannedPDFDocument(ctx, kb, knowledge, ResolveProcessConfig(kb, nil), res)
+	require.NoError(t, err)
+	require.True(t, applied)
+	assert.Equal(t, 3, stubVLM.calls, "must not retry failed OCR pages")
+	assert.Equal(t, "2", res.Metadata["scanned_pdf_failed_pages"])
+}
+
