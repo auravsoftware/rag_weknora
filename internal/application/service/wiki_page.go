@@ -531,7 +531,7 @@ func (s *wikiPageService) GetIndex(ctx context.Context, kbID string) (*types.Wik
 		if errors.Is(err, repository.ErrWikiPageNotFound) {
 			// Create default index page
 			return s.createDefaultPage(ctx, kbID, "index", "Index", types.WikiPageTypeIndex,
-				"# Wiki Index\n\nThis is the index page. It will be automatically updated as pages are added.\n")
+				"# Mục lục Wiki\n\nTrang mục lục này sẽ tự động cập nhật khi các trang tri thức mới được thêm vào.\n")
 		}
 		return nil, err
 	}

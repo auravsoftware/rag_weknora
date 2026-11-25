@@ -2306,7 +2306,7 @@ func (s *wikiIngestService) rebuildIndexPage(ctx context.Context, chatModel chat
 			"InstructionScope":   "wiki_content",
 		})
 		if genErr != nil {
-			intro = "# Wiki Index\n\nThis wiki contains knowledge extracted from uploaded documents.\n"
+			intro = "# Mục lục Wiki\n\nKho Wiki này tổng hợp tri thức được trích xuất tự động từ các tài liệu đã tải lên.\n"
 		} else {
 			intro = strings.TrimSpace(generatedIntro)
 		}
